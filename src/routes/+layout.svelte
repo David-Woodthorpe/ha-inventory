@@ -106,6 +106,14 @@
     </a>
   </nav>
 
+  <div class="nav-group">System</div>
+  <nav class="nav" aria-label="System navigation">
+    <a class="nav-link" class:active={isActive('/backup')} href={h('/backup')}>
+      <Icon name="archive" size={18} />
+      Backup &amp; restore
+    </a>
+  </nav>
+
   <div class="sidebar-foot">
     {#if data.stats.low_stock_count > 0}
       <a class="low-alert" href={h('/items?low=1')}>

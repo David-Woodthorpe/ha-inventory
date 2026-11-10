@@ -33,7 +33,9 @@ export const GET = wrapApi(() =>
       'DELETE /api/v1/attachments/{id}',
       'GET /api/v1/attachments/{id}/file',
       'GET /api/v1/search?q=',
-      'GET /api/v1/export'
+      'GET /api/v1/export',
+      'GET /api/v1/backup',
+      'POST /api/v1/restore'
     ]
   })
 );

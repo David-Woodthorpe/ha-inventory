@@ -5,15 +5,6 @@ import { databaseFile, uploadDir, dataDir } from './config';
 mkdirSync(dataDir, { recursive: true });
 mkdirSync(uploadDir, { recursive: true });
 
-export const db = new DatabaseSync(databaseFile);
-
-db.exec(`
-  PRAGMA journal_mode = WAL;
-  PRAGMA foreign_keys = ON;
-  PRAGMA busy_timeout = 5000;
-  PRAGMA synchronous = NORMAL;
-`);
-
 const migrations: string[] = [
   // v1 — initial schema
   `
@@ -87,33 +78,77 @@ const migrations: string[] = [
   `
 ];
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS schema_migrations (
-    version INTEGER PRIMARY KEY,
-    applied_at TEXT NOT NULL
-  );
-`);
+export const latestSchemaVersion = migrations.length;
 
-const appliedRow = db.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get() as {
-  version: number;
-};
-let currentVersion = Number(appliedRow?.version ?? 0);
+function configure(connection: DatabaseSync): void {
+  connection.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA foreign_keys = ON;
+    PRAGMA busy_timeout = 5000;
+    PRAGMA synchronous = NORMAL;
+  `);
+}
 
-for (let i = currentVersion; i < migrations.length; i++) {
-  const version = i + 1;
-  db.exec('BEGIN');
-  try {
-    db.exec(migrations[i]);
-    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
-      version,
-      new Date().toISOString()
+function migrate(connection: DatabaseSync): void {
+  connection.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT NOT NULL
     );
-    db.exec('COMMIT');
-    currentVersion = version;
+  `);
+
+  const appliedRow = connection
+    .prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations')
+    .get() as { version: number };
+  let currentVersion = Number(appliedRow?.version ?? 0);
+
+  for (let i = currentVersion; i < migrations.length; i++) {
+    const version = i + 1;
+    connection.exec('BEGIN');
+    try {
+      connection.exec(migrations[i]);
+      connection
+        .prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)')
+        .run(version, new Date().toISOString());
+      connection.exec('COMMIT');
+      currentVersion = version;
+    } catch (error) {
+      connection.exec('ROLLBACK');
+      throw error;
+    }
+  }
+}
+
+function openDatabase(): DatabaseSync {
+  const connection = new DatabaseSync(databaseFile);
+  try {
+    configure(connection);
+    migrate(connection);
+    return connection;
   } catch (error) {
-    db.exec('ROLLBACK');
+    try {
+      connection.close();
+    } catch {
+      // ignore close failures while handling the original error
+    }
     throw error;
   }
+}
+
+/**
+ * The live SQLite connection. This is deliberately a mutable export so a
+ * restore can close the old connection and replace it with one opened against
+ * the restored database file; every importer sees the new connection through
+ * the ES module live binding.
+ */
+export let db = openDatabase();
+
+export function closeDatabase(): void {
+  db.close();
+}
+
+export function reopenDatabase(): void {
+  db = openDatabase();
 }
 
 export function transaction<T>(fn: () => T): T {

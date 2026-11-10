@@ -1,4 +1,4 @@
-import { apiKey, appVersion, defaultCurrency, maxUploadBytes, publicBaseUrl } from '$lib/server/config';
+import { apiKey, appVersion, defaultCurrency, maxUploadBytes, pricingEnabled, publicBaseUrl } from '$lib/server/config';
 
 export function load({ url, request }: { url: URL; request: Request }) {
   const ingressPath = (request.headers.get('x-ingress-path') ?? '').replace(/\/+$/, '');
@@ -7,6 +7,7 @@ export function load({ url, request }: { url: URL; request: Request }) {
     apiKeyEnabled: Boolean(apiKey),
     version: appVersion,
     currency: defaultCurrency,
+    pricingEnabled,
     maxUploadMb: Math.round(maxUploadBytes / (1024 * 1024))
   };
 }

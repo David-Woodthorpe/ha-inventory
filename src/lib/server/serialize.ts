@@ -1,4 +1,5 @@
 import type { Attachment, Item, Location, StockMovement } from '$lib/types';
+import { pricingEnabled } from './config';
 
 export type LocationRef = Pick<Location, 'id' | 'name' | 'path' | 'path_ids' | 'path_label'>;
 
@@ -83,7 +84,7 @@ export function toItem(row: ItemRow, ctx: HydrateContext): ItemSummary {
     mpn: row.mpn,
     supplier: row.supplier,
     supplier_url: row.supplier_url,
-    price: row.price,
+    price: pricingEnabled ? row.price : null,
     currency: row.currency,
     datasheet_url: row.datasheet_url,
     notes: row.notes,
@@ -91,7 +92,7 @@ export function toItem(row: ItemRow, ctx: HydrateContext): ItemSummary {
     custom_fields: customFields,
     archived: Boolean(row.archived),
     low_stock: lowStock,
-    total_value: row.price === null ? null : round2(row.price * row.quantity),
+    total_value: pricingEnabled && row.price !== null ? round2(row.price * row.quantity) : null,
     photo: photos[0] ?? null,
     attachment_count: attachments.length,
     photos,

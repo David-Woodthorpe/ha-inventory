@@ -1,5 +1,5 @@
 import type { CategoryCount, Meta, Stats, TagCount } from '$lib/types';
-import { defaultCurrency } from './config';
+import { defaultCurrency, pricingEnabled } from './config';
 import { db } from './db';
 import { itemSummaryCounts } from './items';
 import { getLocations } from './locations';
@@ -69,6 +69,7 @@ export function getUnits(): string[] {
 }
 
 export function getCurrencies(): string[] {
+  if (!pricingEnabled) return [];
   const rows = db
     .prepare('SELECT DISTINCT currency FROM items WHERE currency IS NOT NULL AND currency <> \'\'')
     .all() as unknown as Array<{ currency: string }>;

@@ -13,6 +13,7 @@ services:
       INVENTORY_API_KEY: ${INVENTORY_API_KEY:-}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
       DEFAULT_CURRENCY: ${DEFAULT_CURRENCY:-GBP}
+      ENABLE_PRICING: ${ENABLE_PRICING:-true}
       # Set when the app is served from a stable public URL (for /llms.txt and
       # the API docs). Not needed for direct access or Home Assistant ingress.
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}

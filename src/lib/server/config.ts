@@ -30,6 +30,21 @@ function optionText(key: string): string {
   return '';
 }
 
+function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return undefined;
+}
+
+function optionBoolean(key: string): boolean | undefined {
+  return parseBoolean(haOptions[key]);
+}
+
 export const dataDir = env.DATA_DIR ? path.resolve(env.DATA_DIR) : path.join(root, 'data');
 export const uploadDir = path.join(dataDir, 'uploads');
 export const databaseFile = path.join(dataDir, 'inventory.db');
@@ -37,6 +52,7 @@ export const databaseFile = path.join(dataDir, 'inventory.db');
 const maxUploadMb = env.MAX_UPLOAD_MB || optionText('max_upload_mb') || '50';
 export const maxUploadBytes = Math.max(1, Number(maxUploadMb) || 50) * 1024 * 1024;
 export const defaultCurrency = (env.DEFAULT_CURRENCY || optionText('default_currency') || 'GBP').toUpperCase();
+export const pricingEnabled = parseBoolean(env.ENABLE_PRICING) ?? optionBoolean('enable_pricing') ?? true;
 export const apiKey = env.INVENTORY_API_KEY || optionText('api_key');
 export const publicBaseUrl = (env.PUBLIC_BASE_URL || optionText('public_url')).replace(/\/+$/, '');
 export const appVersion = '1.0.0';

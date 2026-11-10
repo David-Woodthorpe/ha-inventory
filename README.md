@@ -22,12 +22,13 @@ Workshop
 ## Features
 
 - **Arbitrarily nested locations** — rooms, shelves, drawers, bins; move a branch without breaking it.
-- **Items** with quantity, unit, low-stock threshold, SKU, category, tags, supplier, price, manufacturer,
-  part number, datasheet URL, notes and arbitrary custom fields.
+- **Items** with quantity, unit, low-stock threshold, SKU, category, tags, supplier, optional price,
+  manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
 - **Stock movements** — every change is recorded with a reason and note; quick +/- buttons and manual
   adjustments. Quantities may be fractional (metres of wire, grams of paste).
 - **Photos and documents** — upload images, datasheets, manuals and receipts to items or locations.
 - **Search and filters** — full-text search, category, tag, location (including descendants), low stock.
+- **Backup and restore** — download a consistent SQLite snapshot from the UI or API, and restore it with validation and automatic rollback on failure.
 - **AI-ready REST API** — JSON envelope, UUIDs, pagination, OpenAPI schema and a dedicated `/llms.txt`
   guide written for language models.
 - **No build-time database** — one SQLite file plus an uploads directory. Back up by copying `data/`.
@@ -83,8 +84,9 @@ the variables in your shell, service manager or container instead.
 | `DATA_DIR` | `./data` | Directory for `inventory.db` and `uploads/`. |
 | `PORT` | `3000` | Port for the production server (`npm start`). |
 | `INVENTORY_API_KEY` | *(unset)* | When set, every `/api/v1/*` request needs `Authorization: Bearer <key>` or `X-Api-Key: <key>`. |
-| `MAX_UPLOAD_MB` | `50` | Maximum size of a single uploaded file. |
+| `MAX_UPLOAD_MB` | `50` | Maximum size of a single uploaded file or database restore. |
 | `DEFAULT_CURRENCY` | `GBP` | ISO 4217 code used for new items and value totals. |
+| `ENABLE_PRICING` | `true` | Set to `false` to hide price, currency and inventory-value fields in the UI and API. Stored prices are kept. |
 | `PUBLIC_BASE_URL` | *(unset)* | Stable public URL used in `/llms.txt` and the API docs, for example `https://inventory.example.com`. Do not include `/api/v1`. |
 | `ORIGIN` | *(unset)* | Force the public origin (`scheme://host[:port]`) used by SvelteKit. Usually unnecessary because the runtime wrapper derives it from forwarding headers. |
 
@@ -95,6 +97,11 @@ uploads larger than adapter-node's 512 KB default work out of the box. Set
 `INVENTORY_API_KEY` protects the API only. The web UI, `/llms.txt` and `/media/*` remain open so that
 images load in the browser. Put the app behind a reverse proxy with authentication if it is exposed to
 the internet.
+
+Set `ENABLE_PRICING=false` to run the inventory without money tracking. The UI hides unit price,
+currency, the value column, the value sort option and the inventory-value total; the API returns `null`
+for `price` and `total_value` and ignores `price`/`currency` on writes. Existing prices remain in the
+database and reappear if you set it back to `true`.
 
 ## Production deployment
 
@@ -172,6 +179,7 @@ Configuration is read from the environment; create a `.env` file next to
 INVENTORY_API_KEY=replace-with-a-long-random-string
 MAX_UPLOAD_MB=100
 DEFAULT_CURRENCY=GBP
+ENABLE_PRICING=true
 PUBLIC_BASE_URL=https://inventory.example.com
 ```
 
@@ -217,6 +225,7 @@ Add-on options:
 | --- | --- | --- |
 | `api_key` | *(empty)* | Require `Authorization: Bearer <key>` (or `X-Api-Key`) on `/api/v1/*`. |
 | `default_currency` | `GBP` | Default ISO 4217 currency for new items. |
+| `enable_pricing` | `true` | Set to `false` to hide price, currency and inventory-value fields. Stored prices are kept. |
 | `max_upload_mb` | `50` | Maximum size of a single upload. |
 | `public_url` | *(empty)* | Stable public URL used in `/llms.txt` and the API docs. Leave empty for ingress. |
 
@@ -231,6 +240,30 @@ details.
 
 ### Backups
 
+Open **System → Backup & restore** in the sidebar (or `/backup`) to download a consistent snapshot of the
+SQLite database and to restore one. The download uses SQLite's `VACUUM INTO`, so it is safe while the app
+is running.
+
+The same operations are available over the API:
+
+```bash
+# Download a snapshot
+curl -H "Authorization: Bearer $INVENTORY_API_KEY" \
+  http://localhost:3000/api/v1/backup -o inventory-backup.db
+
+# Replace the database with a snapshot (destructive)
+curl -X POST -H "Authorization: Bearer $INVENTORY_API_KEY" \
+  -F 'file=@inventory-backup.db' \
+  http://localhost:3000/api/v1/restore
+```
+
+Restore validates the uploaded file with SQLite integrity, schema-version and foreign-key checks. If the
+new database cannot be opened, the previous database is restored automatically. Backups from a newer
+schema version are rejected.
+
+Database backups contain items, locations, attachment metadata and stock history. Uploaded files live
+in `data/uploads` and are **not** included, so copy that directory separately.
+
 Everything lives in `DATA_DIR`:
 
 ```
@@ -239,7 +272,7 @@ data/
 └── uploads/          # attachment files
 ```
 
-Stop the service and copy the whole directory, or use SQLite's online backup:
+You can also stop the service and copy the whole directory, or use SQLite's online backup:
 
 ```bash
 sqlite3 data/inventory.db ".backup '/backups/inventory-$(date +%F).db'"
@@ -301,6 +334,9 @@ Requests without a valid key receive `401` with a JSON error body.
 Status codes are meaningful: `200`/`201` success, `204` deleted, `207` partial bulk success, `400`
 validation, `401` unauthorized, `404` missing, `409` conflict, `413` too large.
 
+When `ENABLE_PRICING=false`, item responses set `price` and `total_value` to `null`, `/meta` returns an
+empty `currencies` list, and `price`/`currency` fields on create or update requests are ignored.
+
 ### Endpoints
 
 | Method | Path | Purpose |
@@ -327,6 +363,8 @@ validation, `401` unauthorized, `404` missing, `409` conflict, `413` too large.
 | `DELETE` | `/attachments/{id}` | Delete metadata and file. |
 | `GET` | `/search?q=` | Search items and locations together. |
 | `GET` | `/export` | Download the entire inventory as JSON. |
+| `GET` | `/backup` | Download a consistent SQLite database snapshot. |
+| `POST` | `/restore` | Replace the database from a snapshot (`multipart/form-data`, `file` field). Destructive. |
 
 ### Examples
 
@@ -396,6 +434,7 @@ src/
     ├── locations/             Tree, detail, create, edit
     ├── api/                   Human/AI developer documentation
     ├── api/v1/                REST endpoints
+    ├── backup/                Backup and restore UI
     ├── media/[id]/            UI-facing attachment stream
     └── llms.txt/              AI-oriented API guide
 scripts/seed.mjs               Demo data loader (uses the public API)

@@ -29,7 +29,8 @@ seed script is idempotent, so it is safe to run again.
 | --- | --- | --- |
 | `api_key` | *(empty)* | Protect `/api/v1/*` with `Authorization: Bearer <key>` or `X-Api-Key: <key>`. The UI, `/media/*` and `/api/v1/health` stay available. |
 | `default_currency` | `GBP` | ISO 4217 currency code used for new items. |
-| `max_upload_mb` | `50` | Maximum size of a single upload. |
+| `enable_pricing` | `true` | Set to `false` to hide price, currency and inventory-value fields in the UI and API. Stored prices are kept and reappear if re-enabled. |
+| `max_upload_mb` | `50` | Maximum size of a single upload or database restore. |
 | `public_url` | *(empty)* | Stable public URL of the app, used in `/llms.txt` and the API docs. Leave empty when using ingress. |
 
 Changing an option restarts the add-on.
@@ -65,15 +66,28 @@ The add-on uses `backup: cold`, so Home Assistant stops it before taking a
 backup. This makes the SQLite copy consistent. Restore through the normal
 Home Assistant backup flow; no separate export is needed.
 
-To keep an independent copy, use the API export endpoint:
+For an independent database snapshot, use **System → Backup & restore** in the
+sidebar or the API:
 
 ```sh
+# Download a consistent SQLite snapshot
 curl -H "Authorization: Bearer $INVENTORY_API_KEY" \
-  http://<host>:3000/api/v1/export > inventory-export.json
+  http://<host>:3000/api/v1/backup -o inventory-backup.db
+
+# Restore it (destructive)
+curl -X POST -H "Authorization: Bearer $INVENTORY_API_KEY" \
+  -F 'file=@inventory-backup.db' \
+  http://<host>:3000/api/v1/restore
 ```
 
-Uploaded files are not included in that JSON export, so also copy `/data/uploads`
-if you need them.
+Restore validates the file with SQLite integrity, schema-version and foreign-key
+checks, and keeps the previous database if the new one cannot be opened.
+Backups from a newer add-on version are rejected.
+
+Database backups contain items, locations, attachment metadata and stock
+history. Uploaded files are **not** included, so also copy `/data/uploads` if
+you need them. The JSON export endpoint (`/api/v1/export`) is a separate
+human-readable export and does not include binary files either.
 
 ## API
 
@@ -84,5 +98,6 @@ optional direct port: `http://<home-assistant-host>:3000/api/v1`.
 - `/api/v1/openapi.json` — OpenAPI schema.
 - `/llms.txt` — compact guide for AI assistants.
 - `/api/v1/health` — liveness check, always unauthenticated.
+- `/api/v1/backup` and `/api/v1/restore` — database snapshot and restore.
 
 See the main [README](README.md) for the full endpoint list and examples.

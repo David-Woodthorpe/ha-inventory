@@ -40,10 +40,12 @@ environment:
 options:
   api_key: ""
   default_currency: GBP
+  enable_pricing: true
   max_upload_mb: 50
   public_url: ""
 schema:
   api_key: password
   default_currency: str(3,3)
+  enable_pricing: bool
   max_upload_mb: int(1,2048)
   public_url: str?

@@ -1,4 +1,4 @@
-import { appVersion } from './config';
+import { appVersion, pricingEnabled } from './config';
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 
@@ -22,7 +22,8 @@ export const openapi = {
     title: 'Inventory API',
     version: appVersion,
     description:
-      'A small, predictable REST API for a self-hosted electronics and electrical parts inventory. All IDs are UUIDs. Responses are JSON. Errors use {"error":{"code","message","details?"}}.'
+      'A small, predictable REST API for a self-hosted electronics and electrical parts inventory. All IDs are UUIDs. Responses are JSON. Errors use {"error":{"code","message","details?"}}.' +
+      (pricingEnabled ? '' : ' Pricing and value tracking are disabled on this instance.')
   },
   servers: [{ url: '/api/v1', description: 'This server' }],
   tags: [
@@ -405,6 +406,65 @@ export const openapi = {
           }
         }
       }
+    },
+    '/backup': {
+      get: {
+        tags: ['Discovery'],
+        summary: 'Download a consistent SQLite database snapshot',
+        description:
+          'Creates the snapshot with SQLite VACUUM INTO, so it is safe while the app is running. Uploaded files in data/uploads are not included.',
+        responses: {
+          '200': {
+            description: 'SQLite database file',
+            content: {
+              'application/vnd.sqlite3': { schema: { type: 'string', format: 'binary' } }
+            }
+          }
+        }
+      }
+    },
+    '/restore': {
+      post: {
+        tags: ['Discovery'],
+        summary: 'Replace the database from a SQLite snapshot',
+        description:
+          'Destructive. The uploaded file is validated with SQLite integrity, schema version and foreign-key checks before it replaces the current database. Uploaded files in data/uploads are not changed.',
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: { file: { type: 'string', format: 'binary' } }
+              }
+            },
+            'application/vnd.sqlite3': { schema: { type: 'string', format: 'binary' } }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Database restored',
+            content: json({
+              type: 'object',
+              properties: {
+                data: {
+                  type: 'object',
+                  properties: {
+                    size: { type: 'integer' },
+                    schema_version: { type: 'integer' },
+                    item_count: { type: 'integer' },
+                    location_count: { type: 'integer' },
+                    attachment_count: { type: 'integer' }
+                  }
+                }
+              }
+            })
+          },
+          '400': errorResponses['400'],
+          '413': { description: 'File too large', content: json(error) }
+        }
+      }
     }
   },
   components: {
@@ -495,8 +555,12 @@ export const openapi = {
           mpn: { type: 'string', nullable: true },
           supplier: { type: 'string', nullable: true },
           supplier_url: { type: 'string', nullable: true },
-          price: { type: 'number', minimum: 0, nullable: true, description: 'Price per unit' },
-          currency: { type: 'string', nullable: true, example: 'GBP' },
+          ...(pricingEnabled
+            ? {
+                price: { type: 'number', minimum: 0, nullable: true, description: 'Price per unit' },
+                currency: { type: 'string', nullable: true, example: 'GBP' }
+              }
+            : {}),
           datasheet_url: { type: 'string', nullable: true },
           notes: { type: 'string', nullable: true },
           tags: { type: 'array', items: { type: 'string' }, example: ['through-hole', '10k'] },
@@ -521,15 +585,19 @@ export const openapi = {
           mpn: { type: 'string', nullable: true },
           supplier: { type: 'string', nullable: true },
           supplier_url: { type: 'string', nullable: true },
-          price: { type: 'number', nullable: true },
-          currency: { type: 'string' },
+          ...(pricingEnabled
+            ? {
+                price: { type: 'number', nullable: true },
+                currency: { type: 'string' }
+              }
+            : {}),
           datasheet_url: { type: 'string', nullable: true },
           notes: { type: 'string', nullable: true },
           tags: { type: 'array', items: { type: 'string' } },
           custom_fields: { type: 'object', additionalProperties: true },
           archived: { type: 'boolean' },
           low_stock: { type: 'boolean' },
-          total_value: { type: 'number', nullable: true },
+          ...(pricingEnabled ? { total_value: { type: 'number', nullable: true } } : {}),
           photo: { allOf: [attachment], nullable: true },
           attachment_count: { type: 'integer' },
           photos: { type: 'array', items: attachment },

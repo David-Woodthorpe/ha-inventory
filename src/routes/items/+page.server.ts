@@ -1,3 +1,4 @@
+import { pricingEnabled } from '$lib/server/config';
 import { listItems } from '$lib/server/items';
 import { getCategories, getTags } from '$lib/server/meta';
 import { getLocations } from '$lib/server/locations';
@@ -13,7 +14,7 @@ export function load({ url }: { url: URL }) {
   const low = params.get('low') === '1';
   const archived = params.get('archived') === '1';
   const sortParam = params.get('sort') ?? 'name';
-  const sort = SORTS.has(sortParam) ? sortParam : 'name';
+  const sort = !pricingEnabled && sortParam === 'value' ? 'name' : SORTS.has(sortParam) ? sortParam : 'name';
   const page = Math.max(1, Math.floor(Number(params.get('page') ?? '1')) || 1);
   const limit = 50;
 

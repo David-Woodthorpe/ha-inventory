@@ -1,4 +1,4 @@
-import { apiKey, appVersion, publicBaseUrl } from '$lib/server/config';
+import { apiKey, appVersion, pricingEnabled, publicBaseUrl } from '$lib/server/config';
 import { wrapApi } from '$lib/server/http';
 
 export const GET = wrapApi(({ url, request }) => {
@@ -8,6 +8,12 @@ export const GET = wrapApi(({ url, request }) => {
   const auth = apiKey
     ? `Authentication is ENABLED. Send "Authorization: Bearer $INVENTORY_API_KEY" on every request.`
     : `Authentication is currently disabled. If the owner sets INVENTORY_API_KEY, send "Authorization: Bearer <key>".`;
+  const pricingFields = pricingEnabled
+    ? `  "price": 0.02,\n  "currency": "GBP",\n`
+    : '';
+  const pricingNote = pricingEnabled
+    ? '- price is per unit; total_value = price * quantity.'
+    : '- Pricing and value tracking are disabled on this instance; price and total_value are null.';
 
   const text = `# Inventory API
 
@@ -53,6 +59,8 @@ DELETE /attachments/{id}
 GET    /attachments/{id}/file
 GET    /search?q=
 GET    /export
+GET    /backup                          (consistent SQLite database snapshot)
+POST   /restore                         (multipart/form-data file=@backup.db; destructive)
 
 ## Item shape
 {
@@ -68,9 +76,7 @@ GET    /export
   "mpn": "CFR-25JB-52-10K",
   "supplier": "Mouser",
   "supplier_url": "https://...",
-  "price": 0.02,
-  "currency": "GBP",
-  "datasheet_url": "https://...",
+${pricingFields}  "datasheet_url": "https://...",
   "notes": "Bought in 2025",
   "tags": ["through-hole", "10k"],
   "custom_fields": {"tolerance": "5%", "power": "0.25W"},
@@ -98,12 +104,18 @@ Upload a manual:
 curl -X POST ${base}/attachments \\
   -F 'file=@manual.pdf' -F 'item_id=<id>' -F 'kind=document'
 
+Download and restore a database backup:
+curl ${base}/backup -o inventory-backup.db
+curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
+
 ## Notes
 - Quantities are numbers and may be fractional (e.g. 2.5 metres of wire).
 - low_stock is true when min_quantity > 0 and quantity <= min_quantity.
-- price is per unit; total_value = price * quantity.
+${pricingNote}
 - Deleting a location fails with 409 unless it is empty (no children, items or attachments).
 - Uploads are stored in the server's data/uploads directory; max size is controlled by MAX_UPLOAD_MB.
+- Database backups contain items, locations, stock history and attachment metadata. Uploaded files are not included; copy the uploads directory separately.
+- POST /restore replaces the entire database. It validates the uploaded SQLite file first and rejects backups from a newer schema version.
 `;
 
   return new Response(text, {

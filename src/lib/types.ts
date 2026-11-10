@@ -109,7 +109,7 @@ export interface Stats {
   location_count: number;
   low_stock_count: number;
   total_units: number;
-  total_value: number;
+  total_value: number | null;
   attachment_count: number;
   category_count: number;
   currency: string;

@@ -19,7 +19,9 @@
         { method: 'GET', path: '/health', desc: 'Liveness probe' },
         { method: 'GET', path: '/meta', desc: 'Locations, categories, tags, units, stats' },
         { method: 'GET', path: '/openapi.json', desc: 'Machine-readable schema' },
-        { method: 'GET', path: '/export', desc: 'Full JSON export' }
+        { method: 'GET', path: '/export', desc: 'Full JSON export' },
+        { method: 'GET', path: '/backup', desc: 'Download SQLite database snapshot' },
+        { method: 'POST', path: '/restore', desc: 'Replace the database from a snapshot' }
       ]
     },
     {
@@ -100,9 +102,7 @@ curl -X POST ${base}/attachments \\
   "mpn": "CFR-25JB-52-10K",
   "supplier": "Mouser",
   "supplier_url": "https://…",
-  "price": 0.02,
-  "currency": "${data.currency}",
-  "datasheet_url": "https://…",
+${data.pricingEnabled ? `  "price": 0.02,\n  "currency": "${data.currency}",\n` : ''}  "datasheet_url": "https://…",
   "notes": "Bought in 2025",
   "tags": ["through-hole", "10k"],
   "custom_fields": { "tolerance": "5%", "power": "0.25W" },
@@ -189,7 +189,9 @@ curl -X POST ${base}/attachments \\
     <div class="stat-icon"><Icon name="tag" size={19} /></div>
     <div class="stat-label">Version</div>
     <div class="stat-value" style="font-size: 20px;">{data.version}</div>
-    <div class="stat-foot">Default currency {data.currency}</div>
+    <div class="stat-foot">
+      {data.pricingEnabled ? `Default currency ${data.currency}` : 'Pricing and value disabled'}
+    </div>
   </div>
 </div>
 
@@ -279,6 +281,14 @@ curl -X POST ${base}/attachments \\
             <span style="min-width: 0;">
               <span class="child-card-name" style="display: block;">/api/v1/export</span>
               <span class="child-card-meta">Download the whole inventory as JSON</span>
+            </span>
+            <Icon name="external" size={15} />
+          </a>
+          <a class="child-card" href={h('/api/v1/backup')} target="_blank" rel="noopener">
+            <span class="child-card-icon"><Icon name="archive" size={17} /></span>
+            <span style="min-width: 0;">
+              <span class="child-card-name" style="display: block;">/api/v1/backup</span>
+              <span class="child-card-meta">Download a consistent SQLite database snapshot</span>
             </span>
             <Icon name="external" size={15} />
           </a>

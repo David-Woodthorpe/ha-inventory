@@ -217,7 +217,7 @@
             </dd>
           {/if}
 
-          {#if item.price !== null}
+          {#if data.pricingEnabled && item.price !== null}
             <dt>Unit price</dt>
             <dd>
               {formatMoney(item.price, item.currency)}

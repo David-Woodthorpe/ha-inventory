@@ -23,6 +23,7 @@
   } = $props();
 
   const cancel = $derived(withBase(page.data.ingressPath ?? '', cancelHref));
+  const pricingEnabled = $derived(page.data.pricingEnabled ?? true);
 </script>
 
 <form method="POST" class="stack">
@@ -188,7 +189,7 @@
   <div class="card">
     <div class="card-head">
       <h2>Sourcing</h2>
-      <span class="hint">Where it came from and what it cost</span>
+      <span class="hint">{pricingEnabled ? 'Where it came from and what it cost' : 'Where it came from'}</span>
     </div>
     <div class="card-body">
       <div class="form-grid">
@@ -219,37 +220,39 @@
           />
         </div>
 
-        <div class="field">
-          <label class="label" for="price">Unit price</label>
-          <input
-            id="price"
-            class="input"
-            type="number"
-            name="price"
-            value={values.price}
-            min="0"
-            step="any"
-            placeholder="0.00"
-          />
-        </div>
+        {#if pricingEnabled}
+          <div class="field">
+            <label class="label" for="price">Unit price</label>
+            <input
+              id="price"
+              class="input"
+              type="number"
+              name="price"
+              value={values.price}
+              min="0"
+              step="any"
+              placeholder="0.00"
+            />
+          </div>
 
-        <div class="field">
-          <label class="label" for="currency">Currency</label>
-          <input
-            id="currency"
-            class="input mono"
-            name="currency"
-            list="currency-options"
-            value={values.currency}
-            maxlength="3"
-            style="text-transform: uppercase;"
-          />
-          <datalist id="currency-options">
-            {#each options.currencies as currency}
-              <option value={currency}></option>
-            {/each}
-          </datalist>
-        </div>
+          <div class="field">
+            <label class="label" for="currency">Currency</label>
+            <input
+              id="currency"
+              class="input mono"
+              name="currency"
+              list="currency-options"
+              value={values.currency}
+              maxlength="3"
+              style="text-transform: uppercase;"
+            />
+            <datalist id="currency-options">
+              {#each options.currencies as currency}
+                <option value={currency}></option>
+              {/each}
+            </datalist>
+          </div>
+        {/if}
 
         <div class="field full">
           <label class="label" for="datasheet_url">Datasheet URL</label>

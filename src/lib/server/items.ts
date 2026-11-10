@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import path from 'node:path';
 import type { Attachment, Item, ItemDetail, ItemListParams, ItemListResult } from '$lib/types';
 import { db, nowIso, transaction } from './db';
-import { defaultCurrency, uploadDir } from './config';
+import { defaultCurrency, pricingEnabled, uploadDir } from './config';
 import { ApiError, conflict, notFound } from './errors';
 import { getDescendantIds, getLocations } from './locations';
 import {
@@ -140,7 +140,9 @@ export function listItems(params: ItemListParams = {}): ItemListResult {
     created_at: 'items.created_at',
     value: '(COALESCE(items.price, 0) * items.quantity)'
   };
-  const sort = sortMap[params.sort ?? 'name'] ?? sortMap.name;
+  const requestedSort = params.sort ?? 'name';
+  const sortKey = requestedSort === 'value' && !pricingEnabled ? 'name' : requestedSort;
+  const sort = sortMap[sortKey] ?? sortMap.name;
   const order = params.order === 'desc' ? 'DESC' : 'ASC';
   const limit = Math.max(1, Math.min(100000, params.limit ?? 50));
   const offset = Math.max(0, params.offset ?? 0);
@@ -195,6 +197,18 @@ function normalizeTags(tags: string[] | undefined): string[] {
   return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean))).slice(0, 100);
 }
 
+/**
+ * When pricing is disabled, price and currency are ignored rather than deleted.
+ * Existing values stay in the database and reappear if pricing is re-enabled.
+ */
+function withoutPricing(input: unknown): unknown {
+  if (pricingEnabled || !input || typeof input !== 'object' || Array.isArray(input)) return input;
+  const copy = { ...(input as Record<string, unknown>) };
+  delete copy.price;
+  delete copy.currency;
+  return copy;
+}
+
 function serializeValue(column: (typeof itemColumns)[number], value: unknown): SqlValue {
   if (column === 'tags' || column === 'custom_fields') return JSON.stringify(value ?? (column === 'tags' ? [] : {}));
   if (column === 'archived') return value ? 1 : 0;
@@ -211,7 +225,7 @@ function addMovement(itemId: string, delta: number, reason: string | null, note:
 }
 
 export function createItem(input: unknown): ItemDetail {
-  const data = parseWith(itemCreateSchema, input) as ItemInput;
+  const data = parseWith(itemCreateSchema, withoutPricing(input)) as ItemInput;
   ensureLocationExists(data.location_id);
   ensureSkuAvailable(data.sku);
 
@@ -259,7 +273,19 @@ export function createItem(input: unknown): ItemDetail {
 
 export function updateItem(id: string, input: unknown): ItemDetail {
   const existing = getItemRow(id);
-  const data = parseWith(itemUpdateSchema, input) as Record<string, unknown>;
+  const sanitized = withoutPricing(input);
+  // With pricing disabled, a PATCH that only contains price/currency becomes a
+  // no-op instead of failing the "at least one field" validation rule.
+  if (
+    !pricingEnabled &&
+    sanitized &&
+    typeof sanitized === 'object' &&
+    !Array.isArray(sanitized) &&
+    Object.keys(sanitized).length === 0
+  ) {
+    return getItem(id);
+  }
+  const data = parseWith(itemUpdateSchema, sanitized) as Record<string, unknown>;
 
   if ('location_id' in data) ensureLocationExists(data.location_id as string | null);
   if ('sku' in data) ensureSkuAvailable(data.sku as string | null, id);
@@ -413,7 +439,7 @@ export function itemSummaryCounts() {
   return {
     item_count: Number(row.item_count),
     total_units: Number(row.total_units),
-    total_value: round2(Number(row.total_value)),
+    total_value: pricingEnabled ? round2(Number(row.total_value)) : null,
     low_stock_count: Number(row.low_stock_count)
   };
 }

@@ -63,12 +63,14 @@
       {/if}
     </div>
   </div>
-  <div class="stat">
-    <div class="stat-icon"><Icon name="tag" size={19} /></div>
-    <div class="stat-label">Inventory value</div>
-    <div class="stat-value">{formatMoney(stats.total_value, stats.currency)}</div>
-    <div class="stat-foot">Estimated at unit price</div>
-  </div>
+  {#if data.pricingEnabled}
+    <div class="stat">
+      <div class="stat-icon"><Icon name="tag" size={19} /></div>
+      <div class="stat-label">Inventory value</div>
+      <div class="stat-value">{formatMoney(stats.total_value, stats.currency)}</div>
+      <div class="stat-foot">Estimated at unit price</div>
+    </div>
+  {/if}
 </div>
 
 {#if isEmpty}
@@ -101,7 +103,7 @@
           <div class="step-num">2</div>
           <strong class="small">Add your parts</strong>
           <p class="small muted" style="margin-top: 4px;">
-            Track quantity, unit, low-stock threshold, supplier, price and custom fields.
+            Track quantity, unit, low-stock threshold, supplier{data.pricingEnabled ? ', price' : ''} and custom fields.
           </p>
         </div>
         <div class="onboarding-step">

@@ -104,7 +104,9 @@
     <option value="updated_at" selected={data.filters.sort === 'updated_at'}>Recently updated</option>
     <option value="created_at" selected={data.filters.sort === 'created_at'}>Recently added</option>
     <option value="quantity" selected={data.filters.sort === 'quantity'}>Quantity</option>
-    <option value="value" selected={data.filters.sort === 'value'}>Value</option>
+    {#if data.pricingEnabled}
+      <option value="value" selected={data.filters.sort === 'value'}>Value</option>
+    {/if}
     <option value="category" selected={data.filters.sort === 'category'}>Category</option>
   </select>
 
@@ -144,7 +146,9 @@
             <th class="hide-sm">Category</th>
             <th class="hide-sm">Location</th>
             <th class="num">Qty</th>
-            <th class="num hide-sm">Value</th>
+            {#if data.pricingEnabled}
+              <th class="num hide-sm">Value</th>
+            {/if}
             <th class="hide-sm">Updated</th>
             <th></th>
           </tr>
@@ -192,7 +196,9 @@
                 </span>
                 <span class="faint small">{item.unit}</span>
               </td>
-              <td class="num hide-sm">{formatMoney(item.total_value, item.currency)}</td>
+              {#if data.pricingEnabled}
+                <td class="num hide-sm">{formatMoney(item.total_value, item.currency)}</td>
+              {/if}
               <td class="hide-sm muted small">{formatDate(item.updated_at)}</td>
               <td style="width: 40px;">
                 <a class="icon-btn" href={h(`/items/${item.id}`)} aria-label={`Open ${item.name}`}>
