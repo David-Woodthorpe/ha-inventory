@@ -1,0 +1,448 @@
+<script lang="ts">
+  import { page } from '$app/state';
+  import type { PageData } from './$types';
+  import Icon from '$lib/components/Icon.svelte';
+  import UploadForm from '$lib/components/UploadForm.svelte';
+  import { withBase } from '$lib/paths';
+  import {
+    formatBytes,
+    formatDate,
+    formatDateTime,
+    formatMoney,
+    formatNumber,
+    plural,
+    quantityClass
+  } from '$lib/format';
+
+  type ActionResult = { success?: string; error?: string } | null;
+
+  let { data, form }: { data: PageData; form: ActionResult } = $props();
+
+  let activePhoto = $state(0);
+  const h = (path: string) => withBase(page.data.ingressPath ?? '', path);
+  const item = $derived(data.item);
+  const photos = $derived(item.photos);
+  const currentPhoto = $derived(photos[Math.min(activePhoto, photos.length - 1)] ?? null);
+  const customEntries = $derived(Object.entries(item.custom_fields));
+  const qtyClass = $derived(quantityClass(item.quantity, item.low_stock));
+
+  function confirmDelete(event: SubmitEvent) {
+    if (!confirm(`Delete “${item.name}” and all of its files? This cannot be undone.`)) {
+      event.preventDefault();
+    }
+  }
+
+  function confirmDeleteAttachment(event: SubmitEvent) {
+    if (!confirm('Delete this attachment?')) event.preventDefault();
+  }
+</script>
+
+<svelte:head>
+  <title>{item.name} · Inventory</title>
+</svelte:head>
+
+<div class="breadcrumbs">
+  <a href={h('/items')}>Items</a>
+  {#if item.location}
+    {#each item.location.path as part, index}
+      <span class="sep">/</span>
+      <a href={h(`/locations/${item.location.path_ids[index]}`)}>{part}</a>
+    {/each}
+  {/if}
+  <span class="sep">/</span>
+  <span class="truncate" style="max-width: 34ch;">{item.name}</span>
+</div>
+
+<div class="detail-head">
+  <div>
+    <div class="row" style="margin-bottom: 6px;">
+      {#if item.category}
+        <span class="badge badge-accent">{item.category}</span>
+      {/if}
+      {#if item.low_stock}
+        <span class="badge badge-low"><Icon name="alert" size={11} /> Low stock</span>
+      {/if}
+      {#if item.archived}
+        <span class="badge badge-outline">Archived</span>
+      {/if}
+      {#if item.sku}
+        <span class="mono small muted">{item.sku}</span>
+      {/if}
+    </div>
+    <h1 class="detail-title">{item.name}</h1>
+    {#if item.description}
+      <p class="page-sub" style="margin-top: 8px;">{item.description}</p>
+    {/if}
+  </div>
+
+  <div class="page-actions">
+    <a class="btn" href={h(`/items/${item.id}/edit`)}>
+      <Icon name="edit" size={15} />
+      Edit
+    </a>
+    <form method="POST" action="?/archive">
+      <button class="btn" type="submit">
+        <Icon name="archive" size={15} />
+        {item.archived ? 'Restore' : 'Archive'}
+      </button>
+    </form>
+    <form method="POST" action="?/delete" onsubmit={confirmDelete}>
+      <button class="btn btn-danger" type="submit">
+        <Icon name="trash" size={15} />
+        Delete
+      </button>
+    </form>
+  </div>
+</div>
+
+{#if form?.error}
+  <div class="alert alert-error" role="alert" style="margin-bottom: 18px;">
+    <Icon name="alert" size={17} />
+    {form.error}
+  </div>
+{:else if form?.success}
+  <div class="alert alert-success" role="status" style="margin-bottom: 18px;">
+    <Icon name="check" size={17} />
+    {form.success}
+  </div>
+{/if}
+
+<div class="split">
+  <div class="stack">
+    <div class="card">
+      <div class="card-body">
+        <div class="gallery">
+          <div class="gallery-main">
+            {#if currentPhoto}
+              <a href={h(currentPhoto.url)} target="_blank" rel="noreferrer" style="display: contents;">
+                <img src={h(currentPhoto.url)} alt={currentPhoto.caption ?? item.name} />
+              </a>
+            {:else}
+              <div class="gallery-empty">
+                <Icon name="image" size={30} />
+                <span>No photos yet</span>
+              </div>
+            {/if}
+          </div>
+
+          {#if photos.length > 0}
+            <div class="gallery-thumbs">
+              {#each photos as photo, index (photo.id)}
+                <button
+                  class="gallery-thumb"
+                  class:active={index === activePhoto}
+                  type="button"
+                  aria-label={`View photo ${index + 1}`}
+                  onclick={() => (activePhoto = index)}
+                >
+                  <img src={h(photo.url)} alt="" loading="lazy" />
+                </button>
+              {/each}
+            </div>
+          {/if}
+
+          {#if currentPhoto}
+            <div class="row-between">
+              <span class="small muted">
+                {currentPhoto.caption ?? currentPhoto.original_name}
+                <span class="faint">· {formatBytes(currentPhoto.size)}</span>
+              </span>
+              <form method="POST" action="?/deleteAttachment" onsubmit={confirmDeleteAttachment}>
+                <input type="hidden" name="id" value={currentPhoto.id} />
+                <button class="btn btn-ghost btn-sm" type="submit">
+                  <Icon name="trash" size={13} />
+                  Remove photo
+                </button>
+              </form>
+            </div>
+          {/if}
+        </div>
+      </div>
+      <div class="card-foot">
+        <UploadForm action="?/upload" targetName="item_id" targetId={item.id} kind="photo" title="Add a photo" />
+      </div>
+    </div>
+
+    {#if item.notes}
+      <div class="card">
+        <div class="card-head"><h2>Notes</h2></div>
+        <div class="card-body">
+          <p style="white-space: pre-wrap; color: var(--text-soft);">{item.notes}</p>
+        </div>
+      </div>
+    {/if}
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Details</h2>
+        <span class="hint">Added {formatDate(item.created_at)}</span>
+      </div>
+      <div class="card-body">
+        <dl class="kv">
+          <dt>Location</dt>
+          <dd>
+            {#if item.location}
+              <a class="link" href={h(`/locations/${item.location.id}`)}>{item.location.path_label}</a>
+            {:else}
+              <span class="faint">Unassigned</span>
+            {/if}
+          </dd>
+
+          {#if item.category}
+            <dt>Category</dt>
+            <dd><a class="link" href={h(`/items?category=${encodeURIComponent(item.category)}`)}>{item.category}</a></dd>
+          {/if}
+
+          {#if item.manufacturer}
+            <dt>Manufacturer</dt>
+            <dd>{item.manufacturer}</dd>
+          {/if}
+
+          {#if item.mpn}
+            <dt>Part number</dt>
+            <dd class="mono">{item.mpn}</dd>
+          {/if}
+
+          {#if item.supplier}
+            <dt>Supplier</dt>
+            <dd>
+              {#if item.supplier_url}
+                <a class="link" href={item.supplier_url} target="_blank" rel="noreferrer">
+                  {item.supplier}
+                  <Icon name="external" size={12} />
+                </a>
+              {:else}
+                {item.supplier}
+              {/if}
+            </dd>
+          {/if}
+
+          {#if item.price !== null}
+            <dt>Unit price</dt>
+            <dd>
+              {formatMoney(item.price, item.currency)}
+              {#if item.total_value !== null}
+                <span class="muted small">· {formatMoney(item.total_value, item.currency)} total</span>
+              {/if}
+            </dd>
+          {/if}
+
+          {#if item.datasheet_url}
+            <dt>Datasheet</dt>
+            <dd>
+              <a class="link" href={item.datasheet_url} target="_blank" rel="noreferrer">
+                Open datasheet
+                <Icon name="external" size={12} />
+              </a>
+            </dd>
+          {/if}
+
+          {#if item.tags.length}
+            <dt>Tags</dt>
+            <dd>
+              <span class="tag-list">
+                {#each item.tags as tag}
+                  <a class="tag" href={h(`/items?tag=${encodeURIComponent(tag)}`)}>{tag}</a>
+                {/each}
+              </span>
+            </dd>
+          {/if}
+
+          {#each customEntries as [key, value]}
+            <dt>{key}</dt>
+            <dd>{typeof value === 'string' ? value : JSON.stringify(value)}</dd>
+          {/each}
+
+          <dt>Updated</dt>
+          <dd>{formatDate(item.updated_at)}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Stock history</h2>
+        <span class="hint">{plural(item.movements.length, 'movement')}</span>
+      </div>
+      {#if item.movements.length}
+        <div class="card-body history-scroll">
+          <div class="history">
+            {#each item.movements as movement (movement.id)}
+              <div class="history-row">
+                <span class="history-delta" class:up={movement.delta > 0} class:down={movement.delta < 0}>
+                  {movement.delta > 0 ? '+' : ''}{formatNumber(movement.delta)}
+                </span>
+                <span class="history-reason">
+                  {movement.reason ?? 'Adjustment'}
+                  {#if movement.note}<span class="faint">· {movement.note}</span>{/if}
+                </span>
+                <span class="history-date">{formatDateTime(movement.created_at)}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {:else}
+        <div class="empty" style="padding: 30px 20px;">
+          <p class="small">No stock movements recorded yet.</p>
+        </div>
+      {/if}
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <div class="card-head">
+        <h2>Stock</h2>
+        <span class="hint">per {item.unit}</span>
+      </div>
+      <div class="card-body">
+        <div class="quantity-box">
+          <div>
+            <div class="quantity-value {qtyClass}">
+              {formatNumber(item.quantity)}<span class="quantity-unit">{item.unit}</span>
+            </div>
+            <div class="hint" style="margin-top: 5px;">
+              {#if item.min_quantity > 0}
+                Low-stock threshold: {formatNumber(item.min_quantity)} {item.unit}
+              {:else}
+                No low-stock threshold set
+              {/if}
+            </div>
+          </div>
+          <div class="stepper">
+            <form method="POST" action="?/adjust">
+              <input type="hidden" name="delta" value="-1" />
+              <input type="hidden" name="reason" value="used" />
+              <button class="btn" type="submit" aria-label="Remove one" title="Remove one">
+                <Icon name="minus" size={15} />
+              </button>
+            </form>
+            <form method="POST" action="?/adjust">
+              <input type="hidden" name="delta" value="1" />
+              <input type="hidden" name="reason" value="restock" />
+              <button class="btn" type="submit" aria-label="Add one" title="Add one">
+                <Icon name="plus" size={15} />
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <form method="POST" action="?/adjust" class="stack-sm" style="margin-top: 16px;">
+          <div class="form-grid" style="gap: 10px;">
+            <div class="field">
+              <label class="label" for="delta">Adjust by</label>
+              <input
+                id="delta"
+                class="input"
+                type="number"
+                name="delta"
+                step="any"
+                placeholder="e.g. -5 or 25"
+                required
+              />
+            </div>
+            <div class="field">
+              <label class="label" for="reason">Reason</label>
+              <select id="reason" class="select" name="reason">
+                <option value="purchase">Purchase</option>
+                <option value="restock">Restock</option>
+                <option value="used">Used</option>
+                <option value="adjustment">Adjustment</option>
+                <option value="return">Return</option>
+                <option value="damaged">Damaged</option>
+                <option value="lost">Lost</option>
+              </select>
+            </div>
+          </div>
+          <input class="input" name="note" placeholder="Note (optional)" maxlength="1000" />
+          <button class="btn btn-primary" type="submit">
+            <Icon name="check" size={15} />
+            Update stock
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Documents</h2>
+        <span class="hint">{plural(item.documents.length, 'file')}</span>
+      </div>
+      <div class="card-body">
+        {#if item.documents.length}
+          <div class="attachment-list">
+            {#each item.documents as document (document.id)}
+              <div class="attachment">
+                <span class="attachment-icon"><Icon name="file" size={16} /></span>
+                <div style="min-width: 0; flex: 1;">
+                  <a
+                    class="attachment-name"
+                    href={h(document.url)}
+                    download={document.original_name}
+                    title={document.original_name}
+                  >
+                    {document.caption ?? document.original_name}
+                  </a>
+                  <div class="attachment-meta">
+                    {formatBytes(document.size)} · {formatDate(document.created_at)}
+                  </div>
+                </div>
+                <form method="POST" action="?/deleteAttachment" onsubmit={confirmDeleteAttachment}>
+                  <input type="hidden" name="id" value={document.id} />
+                  <button class="icon-btn danger" type="submit" aria-label="Delete document">
+                    <Icon name="trash" size={14} />
+                  </button>
+                </form>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="small muted" style="margin-bottom: 12px;">
+            Datasheets, manuals and receipts will appear here.
+          </p>
+        {/if}
+      </div>
+      <div class="card-foot">
+        <UploadForm
+          action="?/upload"
+          targetName="item_id"
+          targetId={item.id}
+          kind="document"
+          title="Add a document"
+        />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="row-between">
+          <div>
+            <strong class="small">Item actions</strong>
+            <p class="small muted" style="margin-top: 2px;">Edit the record or remove it entirely.</p>
+          </div>
+          <div class="row">
+            <a class="btn btn-sm" href={h(`/items/${item.id}/edit`)}>
+              <Icon name="edit" size={14} />
+              Edit
+            </a>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="row">
+          <form method="POST" action="?/archive">
+            <button class="btn btn-sm" type="submit">
+              <Icon name="archive" size={14} />
+              {item.archived ? 'Restore item' : 'Archive item'}
+            </button>
+          </form>
+          <form method="POST" action="?/delete" onsubmit={confirmDelete}>
+            <button class="btn btn-sm btn-danger" type="submit">
+              <Icon name="trash" size={14} />
+              Delete
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

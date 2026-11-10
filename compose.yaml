@@ -1,0 +1,33 @@
+services:
+  inventory:
+    build: .
+    image: inventory:local
+    container_name: inventory
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATA_DIR: /data
+      PORT: "3000"
+      # Leave empty to run without API authentication on a trusted LAN.
+      INVENTORY_API_KEY: ${INVENTORY_API_KEY:-}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
+      DEFAULT_CURRENCY: ${DEFAULT_CURRENCY:-GBP}
+      # Set when the app is served from a stable public URL (for /llms.txt and
+      # the API docs). Not needed for direct access or Home Assistant ingress.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+    volumes:
+      - inventory-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  inventory-data:
