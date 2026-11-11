@@ -76,14 +76,26 @@ function hostMatchesOrigin(origin, forwardedHost) {
  * headers and rejects form POSTs when it does not match the browser's Origin
  * (403 "Cross-site POST form submissions are forbidden").
  *
- * Home Assistant copies the browser's Host header but may forward an internal
- * X-Forwarded-Host from the proxy in front of it. Match the Origin against both
- * so ingress works whichever host the proxy reported. A cross-site Origin
- * matches neither and is left untouched, so SvelteKit still rejects it.
+ * Match the Origin against the forwarded host and the browser's Host header.
+ * Some proxies rewrite both to an internal host, so also trust the browser's
+ * Sec-Fetch-Site: same-origin signal when the request came through ingress.
+ * Browsers set that header themselves; a cross-site form cannot claim it.
  */
 function alignForwardedHeadersWithOrigin(req) {
   const originHeader = firstHeader(req.headers.origin);
-  if (!originHeader) return;
+  const ingressPath = firstHeader(req.headers['x-ingress-path']);
+  const fetchSite = firstHeader(req.headers['sec-fetch-site']).toLowerCase();
+
+  if (!originHeader) {
+    // Home Assistant can strip Origin from proxied requests. Browsers still
+    // mark same-origin form posts, so synthesise the origin they used.
+    if (isFormSubmission(req) && ingressPath && fetchSite === 'same-origin') {
+      const proto = firstHeader(req.headers['x-forwarded-proto']);
+      const forwardedHost = firstHeader(req.headers['x-forwarded-host']);
+      if (proto && forwardedHost) req.headers.origin = `${proto}://${forwardedHost}`;
+    }
+    return;
+  }
 
   let origin;
   try {
@@ -97,8 +109,9 @@ function alignForwardedHeadersWithOrigin(req) {
   const forwardedMatches =
     Boolean(forwardedHost) && hostMatchesOrigin(origin, forwardedHost);
   const hostMatches = Boolean(hostHeader) && hostMatchesOrigin(origin, hostHeader);
+  const trustedIngress = Boolean(ingressPath) && fetchSite === 'same-origin';
 
-  if (!forwardedMatches && !hostMatches) return;
+  if (!forwardedMatches && !hostMatches && !trustedIngress) return;
 
   req.headers['x-forwarded-proto'] = origin.protocol.slice(0, -1);
 
@@ -127,19 +140,9 @@ function describeRequest(req) {
     host: firstHeader(req.headers.host) || null,
     forwardedHost: firstHeader(req.headers['x-forwarded-host']) || null,
     forwardedProto: firstHeader(req.headers['x-forwarded-proto']) || null,
-    ingressPath: firstHeader(req.headers['x-ingress-path']) || null
+    ingressPath: firstHeader(req.headers['x-ingress-path']) || null,
+    secFetchSite: firstHeader(req.headers['sec-fetch-site']) || null
   });
-}
-
-function derivedOrigin(req) {
-  const proto = firstHeader(req.headers['x-forwarded-proto']);
-  const forwardedHost = firstHeader(req.headers['x-forwarded-host']);
-  if (!proto || !forwardedHost) return null;
-  try {
-    return new URL(`${proto}://${forwardedHost}`).origin;
-  } catch {
-    return null;
-  }
 }
 
 const server = http.createServer((req, res) => {
@@ -152,20 +155,14 @@ const server = http.createServer((req, res) => {
 
   alignForwardedHeadersWithOrigin(req);
 
-  // Log form submissions that still look cross-site so add-on logs can show
-  // exactly which headers Home Assistant forwarded if a 403 persists.
-  if (isFormSubmission(req) && req.headers.origin) {
-    const originHeader = firstHeader(req.headers.origin);
-    let origin;
-    try {
-      origin = new URL(originHeader);
-    } catch {
-      origin = null;
-    }
-    const derived = derivedOrigin(req);
-    if (origin && derived && derived !== origin.origin) {
-      console.warn(`Rejecting cross-site form submission: ${describeRequest(req)}`);
-    }
+  // Log every form submission with its response status. If a 403 persists,
+  // this shows whether the request reached the app and which headers it saw.
+  if (isFormSubmission(req)) {
+    res.on('finish', () => {
+      console.log(
+        `Form ${req.method} ${req.url} -> ${res.statusCode} ${describeRequest(req)}`
+      );
+    });
   }
 
   // SvelteKit's CSRF check applies to every multipart/form-data request,
