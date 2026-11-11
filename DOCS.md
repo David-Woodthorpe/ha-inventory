@@ -32,6 +32,9 @@ seed script is idempotent, so it is safe to run again.
 | `enable_pricing` | `true` | Set to `false` to hide price, currency and inventory-value fields in the UI and API. Stored prices are kept and reappear if re-enabled. |
 | `max_upload_mb` | `50` | Maximum size of a single upload or database restore. |
 | `public_url` | *(empty)* | Stable public URL of the app, used in `/llms.txt` and the API docs. Leave empty when using ingress. |
+| `enable_mqtt` | `true` | Publish locations and items to Home Assistant with MQTT discovery. |
+| `mqtt_discovery_prefix` | `homeassistant` | Home Assistant discovery prefix. |
+| `mqtt_topic_prefix` | `inventory` | Prefix for the app's state and availability topics. |
 
 Changing an option restarts the add-on.
 
@@ -61,6 +64,95 @@ access if the host is reachable by anyone else.
 When the app is behind ingress, set `public_url` only if you also publish it at
 a stable address. Ingress URLs contain a per-installation token and are not
 suitable for `/llms.txt`.
+
+## Home Assistant MQTT discovery
+
+Locations and items can be published to Home Assistant as MQTT devices, so they
+appear alongside the rest of your smart-home entities and can be used in
+dashboards and automations.
+
+### Setup
+
+1. Install the **Mosquitto broker** add-on.
+2. Add the **MQTT** integration under **Settings → Devices & services** (Home
+   Assistant usually offers it automatically once Mosquitto is running).
+3. Make sure `enable_mqtt` is on (the default) and restart Inventory if you have
+   just installed the broker.
+
+The add-on declares `services: [mqtt:want]`, so the Supervisor gives it the
+broker address and credentials automatically. Nothing needs to be copied into
+the add-on options. If MQTT is not installed, the add-on still starts normally
+and discovery stays off.
+
+For a plain Docker install, set `MQTT_HOST` to the broker's LAN address and
+optionally `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_SSL` and `MQTT_PORT`. Use the
+host's LAN IP rather than `localhost`, because `localhost` inside the container
+is the container itself. Set `MQTT_ENABLED=false` to disable discovery.
+
+### Entities
+
+| Device | Entities | Details |
+| --- | --- | --- |
+| **Inventory** (hub) | **Items** sensor, **Low stock items** sensor, **Low stock alert** binary sensor | Totals across the whole inventory. The alert sensor is `problem` when anything is low. |
+| Each **location** | **Contents** sensor, **Low stock** binary sensor | The sensor state is the number of items in the location *and its sublocations*. Its attributes contain the item list and a Markdown table. The binary sensor is `problem` when any item below it is low. |
+| Each **item** | **Quantity** sensor, **Low stock** binary sensor | The quantity sensor uses the item's unit and includes SKU, category, location and threshold as attributes. The low-stock binary sensor is `problem` when `quantity <= min_quantity` and `min_quantity > 0`. |
+
+Locations and items are linked with MQTT `via_device`, so the device page shows
+which shelf or drawer an item belongs to. The top-level location name is used as
+`suggested_area`: Home Assistant suggests that area when it first creates a
+device. This gives you room association without any extra configuration, while
+still letting you move devices between areas manually.
+
+The **Contents** sensor attributes are:
+
+- `item_count`, `direct_item_count`, `total_quantity`, `low_stock`
+- `child_locations` — `[{ id, name }]`
+- `items` — `[{ name, sku, category, quantity, unit, min_quantity, low_stock, location, location_id, updated_at }]`
+- `contents` — a Markdown table ready for a Markdown card
+
+Example dashboard card:
+
+```yaml
+type: markdown
+title: Workshop / Shelf A
+content: >-
+  {{ state_attr('sensor.workshop_shelf_a_contents', 'contents') }}
+```
+
+Example automation trigger:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.10k_resistor_low_stock
+    to: "on"
+actions:
+  - action: notify.notify
+    data:
+      message: >-
+        10k resistor is low:
+        {{ states('sensor.10k_resistor_quantity') }} left.
+```
+
+Entity IDs come from the device and entity names. Search for `contents`,
+`quantity` or `low_stock` under **Developer tools → States** if a name differs.
+
+### Behaviour and cleanup
+
+- Discovery configs and state are published with the MQTT retain flag, so Home
+  Assistant restores entities after a restart.
+- A retained last-will message (`inventory/status` → `offline`) marks all
+  entities unavailable when the add-on stops.
+- Deleting an item or location clears its retained discovery config and state,
+  including after an app restart. The list of published topics is kept in
+  `/data/mqtt-discovery-topics.json`.
+- MQTT discovery must be enabled in the Home Assistant MQTT integration (it is
+  by default). If you use a non-default discovery prefix, set
+  `mqtt_discovery_prefix` to match.
+- Renaming a device or entity in Home Assistant only changes the Home Assistant
+  side; the next sync keeps the app's names.
+- If you change the broker or install MQTT after Inventory has started, restart
+  the add-on so it can read the new service details.
 
 ## Data, backups and restore
 

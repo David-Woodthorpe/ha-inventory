@@ -17,6 +17,17 @@ services:
       # Set when the app is served from a stable public URL (for /llms.txt and
       # the API docs). Not needed for direct access or Home Assistant ingress.
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      # Optional Home Assistant MQTT discovery. Set MQTT_HOST to the broker and
+      # leave MQTT_ENABLED unset; the app connects automatically. Use the
+      # broker's LAN address (for example 192.168.1.10), not localhost.
+      MQTT_ENABLED: ${MQTT_ENABLED:-}
+      MQTT_HOST: ${MQTT_HOST:-}
+      MQTT_PORT: ${MQTT_PORT:-}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      MQTT_SSL: ${MQTT_SSL:-false}
+      MQTT_DISCOVERY_PREFIX: ${MQTT_DISCOVERY_PREFIX:-homeassistant}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-inventory}
     volumes:
       - inventory-data:/data
     healthcheck:

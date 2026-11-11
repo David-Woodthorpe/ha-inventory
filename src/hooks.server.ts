@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { Handle } from '@sveltejs/kit';
 import { apiKey } from '$lib/server/config';
 import { jsonResponse } from '$lib/server/http';
+import { ensureMqttStarted, requestMqttSync } from '$lib/server/mqtt';
 
 function keysMatch(provided: string, expected: string): boolean {
   const a = Buffer.from(provided);
@@ -13,6 +14,11 @@ function keysMatch(provided: string, expected: string): boolean {
 export const handle: Handle = async ({ event, resolve }) => {
   const isApi = event.url.pathname.startsWith('/api/');
   const isHealth = event.url.pathname === '/api/v1/health';
+
+  // Start the optional Home Assistant MQTT discovery publisher on the first
+  // request. It reads the Supervisor's MQTT service or the MQTT_* environment
+  // variables and is a no-op when neither is configured.
+  ensureMqttStarted();
 
   // Health checks (including the Home Assistant watchdog) must work even when
   // the API key is enabled.
@@ -37,6 +43,12 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   let response = await resolve(event);
+
+  // Keep Home Assistant in sync after any write. The publisher debounces bursts
+  // of changes and republishes discovery plus the affected entity states.
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(event.request.method)) {
+    requestMqttSync();
+  }
 
   // The browser is still at /api/hassio_ingress/<token>/... while the app
   // receives the stripped path. Prefix server-side redirects so form actions

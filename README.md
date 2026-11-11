@@ -29,6 +29,7 @@ Workshop
 - **Photos and documents** — upload images, datasheets, manuals and receipts to items or locations.
 - **Search and filters** — full-text search, category, tag, location (including descendants), low stock.
 - **Backup and restore** — download a consistent SQLite snapshot from the UI or API, and restore it with validation and automatic rollback on failure.
+- **Home Assistant MQTT discovery** — optional location and item devices with stock levels, contents tables and low-stock triggers.
 - **AI-ready REST API** — JSON envelope, UUIDs, pagination, OpenAPI schema and a dedicated `/llms.txt`
   guide written for language models.
 - **No build-time database** — one SQLite file plus an uploads directory. Back up by copying `data/`.
@@ -89,6 +90,13 @@ the variables in your shell, service manager or container instead.
 | `ENABLE_PRICING` | `true` | Set to `false` to hide price, currency and inventory-value fields in the UI and API. Stored prices are kept. |
 | `PUBLIC_BASE_URL` | *(unset)* | Stable public URL used in `/llms.txt` and the API docs, for example `https://inventory.example.com`. Do not include `/api/v1`. |
 | `ORIGIN` | *(unset)* | Force the public origin (`scheme://host[:port]`) used by SvelteKit. Usually unnecessary because the runtime wrapper derives it from forwarding headers. |
+| `MQTT_ENABLED` | *(auto)* | Set to `false` to disable Home Assistant MQTT discovery. When unset, discovery is enabled if a broker is configured. |
+| `MQTT_HOST` | *(unset)* | MQTT broker hostname or IP. Setting this enables discovery for plain Docker installs. |
+| `MQTT_PORT` | `1883` / `8883` | Broker port. Defaults to `8883` when `MQTT_SSL=true`. |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | *(unset)* | Broker credentials. |
+| `MQTT_SSL` | `false` | Connect with TLS (`mqtts://`). |
+| `MQTT_DISCOVERY_PREFIX` | `homeassistant` | Home Assistant discovery prefix. |
+| `MQTT_TOPIC_PREFIX` | `inventory` | Prefix for the app's state and availability topics. |
 
 `server.js` also sets adapter-node's `BODY_SIZE_LIMIT` from `MAX_UPLOAD_MB`, so
 uploads larger than adapter-node's 512 KB default work out of the box. Set
@@ -186,6 +194,10 @@ MAX_UPLOAD_MB=100
 DEFAULT_CURRENCY=GBP
 ENABLE_PRICING=true
 PUBLIC_BASE_URL=https://inventory.example.com
+# Optional Home Assistant MQTT discovery
+MQTT_HOST=192.168.1.10
+MQTT_USERNAME=inventory
+MQTT_PASSWORD=replace-me
 ```
 
 Useful commands:
@@ -233,11 +245,61 @@ Add-on options:
 | `enable_pricing` | `true` | Set to `false` to hide price, currency and inventory-value fields. Stored prices are kept. |
 | `max_upload_mb` | `50` | Maximum size of a single upload. |
 | `public_url` | *(empty)* | Stable public URL used in `/llms.txt` and the API docs. Leave empty for ingress. |
+| `enable_mqtt` | `true` | Publish locations and items to Home Assistant with MQTT discovery. Requires the Mosquitto broker add-on and the MQTT integration. |
+| `mqtt_discovery_prefix` | `homeassistant` | Discovery prefix. Change only if your Home Assistant MQTT integration uses a custom prefix. |
+| `mqtt_topic_prefix` | `inventory` | Prefix for the app's state and availability topics. |
 
 Ingress needs no exposed port and Home Assistant handles authentication. For
 API clients that cannot use ingress, enable the optional `3000/tcp` port on the
 add-on page; the API is then at `http://<home-assistant-host>:3000/api/v1`. Set
 `api_key` before exposing it.
+
+#### Home Assistant MQTT discovery
+
+Inventory can expose its locations and items as Home Assistant devices. Install
+the **Mosquitto broker** add-on and add the **MQTT** integration under
+**Settings → Devices & services** first. The Inventory add-on requests access to
+the Supervisor's MQTT service, so no broker address or credentials are needed.
+
+What appears in Home Assistant:
+
+- An **Inventory** hub device with the total item count, total units, low-stock
+  count and a **Low stock alert** binary sensor.
+- One device per **location**, named with its full path (for example
+  `Workshop / Shelf A`). Its **Contents** sensor state is the number of items in
+  that location and all sublocations. Attributes include `items` (a list of
+  name, quantity, unit, SKU, location and low-stock flag), `contents` (a
+  ready-made Markdown table) and `child_locations`. A **Low stock** binary
+  sensor turns on when any item below it needs restocking.
+- One device per **item**, with a **Quantity** sensor and a **Low stock** binary
+  sensor (`device_class: problem`) that can trigger automations.
+- Devices are connected in a hierarchy with `via_device`, and the top-level
+  location name is used as `suggested_area`. Home Assistant suggests that room
+  when the device is first created; you can then move devices between areas
+  freely.
+
+Show a location's contents in a dashboard with a Markdown card:
+
+```yaml
+type: markdown
+title: Workshop / Shelf A
+content: >-
+  {{ state_attr('sensor.workshop_shelf_a_contents', 'contents') }}
+```
+
+The exact entity ID is derived from the device name; check
+**Developer tools → States** and search for `contents` or `low_stock`.
+
+For plain Docker, set `MQTT_HOST` (and `MQTT_USERNAME`/`MQTT_PASSWORD` if
+needed) in `.env`; the app connects on startup. Use the broker's LAN address,
+not `localhost`, because the container cannot reach the host loopback. Set
+`MQTT_ENABLED=false` to turn discovery off.
+
+Discovery messages and state are retained, so entities survive restarts, and
+the app publishes an MQTT last-will message that marks them unavailable when it
+stops. Deleting an item or location removes its retained discovery config.
+If you install or reconfigure the MQTT broker after starting the add-on, restart
+Inventory so it can read the new service details.
 
 Home Assistant snapshots stop the add-on first (`backup: cold`) so the SQLite
 database is copied consistently. See [DOCS.md](DOCS.md) for add-on-specific
@@ -428,7 +490,7 @@ validation errors that name the offending field.
 ```
 src/
 ├── app.css                    Design system, themes and responsive layout
-├── hooks.server.ts            API-key auth and security headers
+├── hooks.server.ts            API-key auth, security headers and MQTT startup
 ├── lib/
 │   ├── components/            Icon, forms, location picker, upload form
 │   ├── server/                SQLite, services, validation, OpenAPI spec

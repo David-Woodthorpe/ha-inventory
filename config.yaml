@@ -1,5 +1,5 @@
 name: Inventory
-version: "1.0.6"
+version: "1.0.7"
 slug: inventory
 description: Self-hosted inventory for electronics parts, tools and workshop supplies.
 arch:
@@ -33,6 +33,12 @@ watchdog: http://[HOST]:[PORT:3000]/api/v1/health
 # Stop the app while Home Assistant snapshots /data so SQLite is copied safely.
 backup: cold
 
+# Ask the Supervisor for the MQTT broker configured in Home Assistant. With
+# `want` the add-on still starts when MQTT is not installed; discovery simply
+# stays off. Add it under Settings -> Devices & services -> MQTT.
+services:
+  - mqtt:want
+
 environment:
   DATA_DIR: /data
   PORT: "3000"
@@ -43,9 +49,15 @@ options:
   enable_pricing: true
   max_upload_mb: 50
   public_url: ""
+  enable_mqtt: true
+  mqtt_discovery_prefix: homeassistant
+  mqtt_topic_prefix: inventory
 schema:
   api_key: password
   default_currency: str(3,3)
   enable_pricing: bool
   max_upload_mb: int(1,2048)
   public_url: str?
+  enable_mqtt: bool
+  mqtt_discovery_prefix: str
+  mqtt_topic_prefix: str

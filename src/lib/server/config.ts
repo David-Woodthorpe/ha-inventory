@@ -55,4 +55,19 @@ export const defaultCurrency = (env.DEFAULT_CURRENCY || optionText('default_curr
 export const pricingEnabled = parseBoolean(env.ENABLE_PRICING) ?? optionBoolean('enable_pricing') ?? true;
 export const apiKey = env.INVENTORY_API_KEY || optionText('api_key');
 export const publicBaseUrl = (env.PUBLIC_BASE_URL || optionText('public_url')).replace(/\/+$/, '');
-export const appVersion = '1.0.6';
+
+function topicPrefix(value: string, fallback: string): string {
+  return (value.trim() || fallback).replace(/^\/+|\/+$/g, '');
+}
+
+export const mqttEnabled = parseBoolean(env.MQTT_ENABLED) ?? optionBoolean('enable_mqtt') ?? true;
+export const mqttDiscoveryPrefix = topicPrefix(
+  env.MQTT_DISCOVERY_PREFIX || optionText('mqtt_discovery_prefix'),
+  'homeassistant'
+);
+export const mqttTopicPrefix = topicPrefix(
+  env.MQTT_TOPIC_PREFIX || optionText('mqtt_topic_prefix'),
+  'inventory'
+);
+
+export const appVersion = '1.0.7';
