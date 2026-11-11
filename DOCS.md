@@ -44,8 +44,11 @@ ingress session.
 
 If Home Assistant is behind a TLS-terminating reverse proxy, the app reconciles
 a missing or incorrect forwarded scheme with the browser's `Origin` header when
-the host matches. This keeps same-origin form submissions, such as adding an
-item or location, from failing with a 403 CSRF error.
+the host matches. It checks both the forwarded host and the browser's `Host`
+header, because Home Assistant can forward an internal host. This keeps
+same-origin form submissions, such as adding an item or location, from failing
+with a 403 CSRF error. Rejected cross-site form submissions are logged with the
+forwarded headers so a remaining mismatch can be diagnosed from the add-on log.
 
 For API clients that cannot use ingress, enable the optional `3000/tcp` port on
 the add-on page. The API is then reachable at

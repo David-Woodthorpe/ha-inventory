@@ -1,6 +1,17 @@
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 
+function readAppVersion() {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+    return pkg.version || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+const appVersion = readAppVersion();
+
 /**
  * Production entrypoint for the Docker image and the Home Assistant add-on.
  *
@@ -65,11 +76,12 @@ function hostMatchesOrigin(origin, forwardedHost) {
  * headers and rejects form POSTs when it does not match the browser's Origin
  * (403 "Cross-site POST form submissions are forbidden").
  *
- * When the Origin host matches the host the request was addressed to, adopt the
- * protocol the browser actually used. A cross-site Origin has a different host,
- * so it is left untouched and still fails SvelteKit's CSRF check.
+ * Home Assistant copies the browser's Host header but may forward an internal
+ * X-Forwarded-Host from the proxy in front of it. Match the Origin against both
+ * so ingress works whichever host the proxy reported. A cross-site Origin
+ * matches neither and is left untouched, so SvelteKit still rejects it.
  */
-function alignForwardedProtoWithOrigin(req) {
+function alignForwardedHeadersWithOrigin(req) {
   const originHeader = firstHeader(req.headers.origin);
   if (!originHeader) return;
 
@@ -80,11 +92,54 @@ function alignForwardedProtoWithOrigin(req) {
     return;
   }
 
-  const forwardedHost =
-    firstHeader(req.headers['x-forwarded-host']) || firstHeader(req.headers.host);
-  if (!forwardedHost || !hostMatchesOrigin(origin, forwardedHost)) return;
+  const forwardedHost = firstHeader(req.headers['x-forwarded-host']);
+  const hostHeader = firstHeader(req.headers.host);
+  const forwardedMatches =
+    Boolean(forwardedHost) && hostMatchesOrigin(origin, forwardedHost);
+  const hostMatches = Boolean(hostHeader) && hostMatchesOrigin(origin, hostHeader);
+
+  if (!forwardedMatches && !hostMatches) return;
 
   req.headers['x-forwarded-proto'] = origin.protocol.slice(0, -1);
+
+  // Keep a matching forwarded host. If the proxy reported an internal host,
+  // use the host the browser actually addressed so SvelteKit's derived origin
+  // equals the browser's Origin.
+  if (!forwardedMatches) {
+    req.headers['x-forwarded-host'] = origin.host;
+  }
+}
+
+function isFormSubmission(req) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method || '')) return false;
+  const contentType = firstHeader(req.headers['content-type']).toLowerCase();
+  return (
+    contentType.startsWith('application/x-www-form-urlencoded') ||
+    contentType.startsWith('multipart/form-data')
+  );
+}
+
+function describeRequest(req) {
+  return JSON.stringify({
+    method: req.method,
+    url: req.url,
+    origin: firstHeader(req.headers.origin) || null,
+    host: firstHeader(req.headers.host) || null,
+    forwardedHost: firstHeader(req.headers['x-forwarded-host']) || null,
+    forwardedProto: firstHeader(req.headers['x-forwarded-proto']) || null,
+    ingressPath: firstHeader(req.headers['x-ingress-path']) || null
+  });
+}
+
+function derivedOrigin(req) {
+  const proto = firstHeader(req.headers['x-forwarded-proto']);
+  const forwardedHost = firstHeader(req.headers['x-forwarded-host']);
+  if (!proto || !forwardedHost) return null;
+  try {
+    return new URL(`${proto}://${forwardedHost}`).origin;
+  } catch {
+    return null;
+  }
 }
 
 const server = http.createServer((req, res) => {
@@ -95,7 +150,23 @@ const server = http.createServer((req, res) => {
     req.headers['x-forwarded-host'] = req.headers.host || `${host}:${port}`;
   }
 
-  alignForwardedProtoWithOrigin(req);
+  alignForwardedHeadersWithOrigin(req);
+
+  // Log form submissions that still look cross-site so add-on logs can show
+  // exactly which headers Home Assistant forwarded if a 403 persists.
+  if (isFormSubmission(req) && req.headers.origin) {
+    const originHeader = firstHeader(req.headers.origin);
+    let origin;
+    try {
+      origin = new URL(originHeader);
+    } catch {
+      origin = null;
+    }
+    const derived = derivedOrigin(req);
+    if (origin && derived && derived !== origin.origin) {
+      console.warn(`Rejecting cross-site form submission: ${describeRequest(req)}`);
+    }
+  }
 
   // SvelteKit's CSRF check applies to every multipart/form-data request,
   // including API uploads. Command-line and server-to-server clients do not
@@ -111,7 +182,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Listening on http://${host}:${port}`);
+  console.log(`Inventory ${appVersion} listening on http://${host}:${port}`);
 });
 
 function shutdown() {

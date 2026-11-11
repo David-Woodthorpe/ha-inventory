@@ -474,7 +474,8 @@ npm run ingress-proxy
 
 Set `TARGET=http://127.0.0.1:3000` to point the proxy at a production build
 instead of the dev server. Set `INGRESS_FORWARDED_PROTO=https` to simulate a
-TLS-terminating reverse proxy that reports the request as `http`.
+TLS-terminating reverse proxy that reports the request as `http`, and
+`INGRESS_FORWARDED_HOST=inventory:3000` to simulate an internal forwarded host.
 
 The UI is intentionally dependency-free: hand-written CSS in `src/app.css`, inline SVG icons, Svelte 5
 runes and progressive-enhancement form actions. The API and the UI share the same server services, so a

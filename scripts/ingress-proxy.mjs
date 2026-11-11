@@ -22,6 +22,9 @@ const publicHost = process.env.PUBLIC_HOST || `localhost:${port}`;
 // Set this to https to reproduce a TLS-terminating reverse proxy that does not
 // forward the original scheme to Home Assistant.
 const forwardedProto = process.env.INGRESS_FORWARDED_PROTO || 'http';
+// Set this to an internal host (for example inventory:3000) to reproduce a
+// proxy that reports X-Forwarded-Host differently from the browser's Host.
+const forwardedHost = process.env.INGRESS_FORWARDED_HOST || null;
 
 function stripPrefix(pathname) {
   if (pathname === prefix) return '/';
@@ -41,7 +44,7 @@ const server = http.createServer((req, res) => {
 
   const headers = { ...req.headers };
   headers['x-ingress-path'] = prefix;
-  headers['x-forwarded-host'] = req.headers.host || publicHost;
+  headers['x-forwarded-host'] = forwardedHost || req.headers.host || publicHost;
   headers['x-forwarded-proto'] = forwardedProto;
 
   const upstream = http.request(
