@@ -126,7 +126,7 @@
         <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
         {theme === 'dark' ? 'Light mode' : 'Dark mode'}
       </button>
-      <span class="sidebar-version">v1.0</span>
+      <span class="sidebar-version">v{data.appVersion}</span>
     </div>
   </div>
 </aside>

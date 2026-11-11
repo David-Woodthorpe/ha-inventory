@@ -19,6 +19,9 @@ const target = new URL(process.env.TARGET || 'http://127.0.0.1:5173');
 const port = Number(process.env.INGRESS_PROXY_PORT || 8099);
 const prefix = (process.env.INGRESS_PATH || '/api/hassio_ingress/local-test').replace(/\/+$/, '');
 const publicHost = process.env.PUBLIC_HOST || `localhost:${port}`;
+// Set this to https to reproduce a TLS-terminating reverse proxy that does not
+// forward the original scheme to Home Assistant.
+const forwardedProto = process.env.INGRESS_FORWARDED_PROTO || 'http';
 
 function stripPrefix(pathname) {
   if (pathname === prefix) return '/';
@@ -39,7 +42,7 @@ const server = http.createServer((req, res) => {
   const headers = { ...req.headers };
   headers['x-ingress-path'] = prefix;
   headers['x-forwarded-host'] = req.headers.host || publicHost;
-  headers['x-forwarded-proto'] = 'http';
+  headers['x-forwarded-proto'] = forwardedProto;
 
   const upstream = http.request(
     {

@@ -42,6 +42,11 @@ authentication. The app detects the changing ingress prefix from
 `X-Ingress-Path` and keeps links, redirects, uploads and media inside the
 ingress session.
 
+If Home Assistant is behind a TLS-terminating reverse proxy, the app reconciles
+a missing or incorrect forwarded scheme with the browser's `Origin` header when
+the host matches. This keeps same-origin form submissions, such as adding an
+item or location, from failing with a 403 CSRF error.
+
 For API clients that cannot use ingress, enable the optional `3000/tcp` port on
 the add-on page. The API is then reachable at
 `http://<home-assistant-host>:3000/api/v1`. Set `api_key` before enabling direct

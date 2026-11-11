@@ -108,7 +108,10 @@ database and reappear if you set it back to `true`.
 The production build uses `server.js`, a small wrapper around adapter-node. It
 sets adapter-node's body limit from `MAX_UPLOAD_MB` and derives the request
 origin from `X-Forwarded-Proto`/`X-Forwarded-Host`, so same-origin form posts
-work both directly and behind Home Assistant ingress or a reverse proxy.
+work both directly and behind Home Assistant ingress or a reverse proxy. If a
+proxy terminates TLS without forwarding the original scheme, the wrapper takes
+the scheme from the browser's `Origin` header when the host matches, preventing
+false 403 CSRF failures on form submissions.
 
 ### Manual / systemd
 
@@ -145,7 +148,9 @@ WantedBy=multi-user.target
 
 If you put nginx, Caddy or Traefik in front, proxy to `127.0.0.1:3000`, set the
 upload body limit to at least `MAX_UPLOAD_MB`, and pass
-`X-Forwarded-Proto`/`X-Forwarded-Host` (most proxies do this by default). Set
+`X-Forwarded-Proto`/`X-Forwarded-Host` (most proxies do this by default). When
+TLS terminates at the proxy, make sure `X-Forwarded-Proto` is `https`; the app
+also falls back to the browser's `Origin` when the host matches. Set
 `PUBLIC_BASE_URL` so `/llms.txt` and the API docs advertise the public address.
 
 ### Docker
@@ -468,7 +473,8 @@ npm run ingress-proxy
 ```
 
 Set `TARGET=http://127.0.0.1:3000` to point the proxy at a production build
-instead of the dev server.
+instead of the dev server. Set `INGRESS_FORWARDED_PROTO=https` to simulate a
+TLS-terminating reverse proxy that reports the request as `http`.
 
 The UI is intentionally dependency-free: hand-written CSS in `src/app.css`, inline SVG icons, Svelte 5
 runes and progressive-enhancement form actions. The API and the UI share the same server services, so a

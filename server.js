@@ -43,6 +43,50 @@ const { handler } = await import('./build/handler.js');
 const host = process.env.HOST || '0.0.0.0';
 const port = Number(process.env.PORT) || 3000;
 
+function firstHeader(value) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return String(raw ?? '').split(',')[0].trim();
+}
+
+function hostMatchesOrigin(origin, forwardedHost) {
+  try {
+    // Resolve the forwarded host using the browser's protocol so default ports
+    // such as :443 are normalised away before comparing.
+    return new URL(`${origin.protocol}//${forwardedHost}`).host === origin.host;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Home Assistant ingress can report the request as http even when the browser
+ * reached it over https, because TLS is terminated by a reverse proxy in front
+ * of Home Assistant. SvelteKit builds the request origin from these forwarded
+ * headers and rejects form POSTs when it does not match the browser's Origin
+ * (403 "Cross-site POST form submissions are forbidden").
+ *
+ * When the Origin host matches the host the request was addressed to, adopt the
+ * protocol the browser actually used. A cross-site Origin has a different host,
+ * so it is left untouched and still fails SvelteKit's CSRF check.
+ */
+function alignForwardedProtoWithOrigin(req) {
+  const originHeader = firstHeader(req.headers.origin);
+  if (!originHeader) return;
+
+  let origin;
+  try {
+    origin = new URL(originHeader);
+  } catch {
+    return;
+  }
+
+  const forwardedHost =
+    firstHeader(req.headers['x-forwarded-host']) || firstHeader(req.headers.host);
+  if (!forwardedHost || !hostMatchesOrigin(origin, forwardedHost)) return;
+
+  req.headers['x-forwarded-proto'] = origin.protocol.slice(0, -1);
+}
+
 const server = http.createServer((req, res) => {
   if (!req.headers['x-forwarded-proto']) {
     req.headers['x-forwarded-proto'] = req.socket.encrypted ? 'https' : 'http';
@@ -50,6 +94,8 @@ const server = http.createServer((req, res) => {
   if (!req.headers['x-forwarded-host']) {
     req.headers['x-forwarded-host'] = req.headers.host || `${host}:${port}`;
   }
+
+  alignForwardedProtoWithOrigin(req);
 
   // SvelteKit's CSRF check applies to every multipart/form-data request,
   // including API uploads. Command-line and server-to-server clients do not
