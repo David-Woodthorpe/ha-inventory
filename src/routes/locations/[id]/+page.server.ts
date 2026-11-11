@@ -7,7 +7,12 @@ import { deleteLocation, getLocation, getLocations } from '$lib/server/locations
 export function load({ params }: { params: { id: string } }) {
   const location = getLocation(params.id);
   const children = getLocations().filter((entry) => entry.parent_id === location.id);
-  const items = listItems({ location_id: location.id, include_descendants: false, limit: 500 }).items;
+  const itemResult = listItems({
+    location_id: location.id,
+    include_descendants: true,
+    limit: 1000
+  });
+  const items = itemResult.items;
   const attachments = listAttachments({ location_id: location.id });
   const parent = location.parent_id ? getLocation(location.parent_id) : null;
   return {
@@ -15,6 +20,7 @@ export function load({ params }: { params: { id: string } }) {
     parent,
     children,
     items,
+    itemTotal: itemResult.total,
     photos: attachments.filter((attachment) => attachment.kind === 'photo'),
     documents: attachments.filter((attachment) => attachment.kind === 'document')
   };

@@ -1,6 +1,6 @@
 {
   "name": "inventory",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "type": "module",
   "description": "Self-hosted inventory for electronics parts, tools and supplies, with an AI-friendly REST API.",

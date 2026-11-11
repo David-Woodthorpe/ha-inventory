@@ -5,6 +5,7 @@
   import UploadForm from '$lib/components/UploadForm.svelte';
   import { formatBytes, formatDate, formatNumber, plural } from '$lib/format';
   import { withBase } from '$lib/paths';
+  import type { Item } from '$lib/types';
 
   type ActionResult = { success?: string; error?: string } | null;
 
@@ -12,6 +13,20 @@
 
   const h = (path: string) => withBase(page.data.ingressPath ?? '', path);
   const location = $derived(data.location);
+
+  // Items can live in this location or any location below it. Show only the
+  // part of each item's path that is below the current location.
+  function relativeCrumbs(item: Item): Array<{ id: string; name: string }> {
+    if (!item.location) return [];
+    const base = location.path_ids;
+    const ids = item.location.path_ids;
+    let start = 0;
+    while (start < base.length && ids[start] === base[start]) start += 1;
+    return item.location.path.slice(start).map((name, index) => ({
+      id: ids[start + index],
+      name
+    }));
+  }
 
   function confirmDeleteLocation(event: SubmitEvent) {
     if (
@@ -32,7 +47,7 @@
   <title>{location.name} · Locations · Inventory</title>
 </svelte:head>
 
-<div class="breadcrumbs">
+<nav class="breadcrumbs" aria-label="Breadcrumb">
   <a href={h('/locations')}>Locations</a>
   {#each location.path as part, index}
     <span class="sep">/</span>
@@ -42,7 +57,7 @@
       <a href={h(`/locations/${location.path_ids[index]}`)}>{part}</a>
     {/if}
   {/each}
-</div>
+</nav>
 
 <div class="detail-head">
   <div>
@@ -57,8 +72,8 @@
       <p class="page-sub" style="margin-top: 8px;">{location.description}</p>
     {/if}
     <div class="row" style="margin-top: 12px;">
-      <span class="badge">{plural(location.direct_item_count, 'item')} here</span>
-      <span class="badge">{plural(location.total_item_count, 'item')} including nested</span>
+      <span class="badge">{plural(location.direct_item_count, 'item')} directly here</span>
+      <span class="badge">{plural(location.total_item_count, 'item')} including sublocations</span>
       <span class="badge">{plural(data.children.length, 'sublocation')}</span>
     </div>
   </div>
@@ -125,14 +140,13 @@
 
     <div class="card">
       <div class="card-head">
-        <h2>Items here</h2>
-        {#if location.total_item_count > location.direct_item_count}
-          <a class="link small" href={h(`/items?location=${location.id}`)}>Include nested items</a>
-        {:else}
+        <h2>Items in this location</h2>
+        <div class="row" style="gap: 12px;">
+          <a class="link small" href={h(`/items?location=${location.id}`)}>View in catalogue</a>
           <a class="link small" href={h(`/items/new?location=${location.id}`)}>
             <Icon name="plus" size={12} /> Add item
           </a>
-        {/if}
+        </div>
       </div>
       {#if data.items.length}
         <div class="table-wrap">
@@ -141,6 +155,7 @@
               <tr>
                 <th>Item</th>
                 <th class="hide-sm">Category</th>
+                <th class="hide-sm">Location</th>
                 <th class="num">Qty</th>
                 <th></th>
               </tr>
@@ -160,11 +175,31 @@
                         <span class="cell-sub">
                           {#if item.sku}<span class="mono">{item.sku}</span>{/if}
                           {#if item.low_stock}<span class="badge badge-low">Low</span>{/if}
+                          <span class="only-mobile">
+                            {item.location?.path_label ?? 'Unassigned'}
+                          </span>
                         </span>
                       </span>
                     </a>
                   </td>
                   <td class="hide-sm">{item.category ?? '—'}</td>
+                  <td class="hide-sm">
+                    {#if item.location}
+                      {@const crumbs = relativeCrumbs(item)}
+                      {#if crumbs.length === 0}
+                        <span class="faint">Here</span>
+                      {:else}
+                        <span class="breadcrumbs inline">
+                          {#each crumbs as crumb, index}
+                            {#if index > 0}<span class="sep">/</span>{/if}
+                            <a href={h(`/locations/${crumb.id}`)}>{crumb.name}</a>
+                          {/each}
+                        </span>
+                      {/if}
+                    {:else}
+                      <span class="faint">Unassigned</span>
+                    {/if}
+                  </td>
                   <td class="num">
                     <span class="qty" class:low={item.low_stock} class:zero={item.quantity <= 0}>
                       {formatNumber(item.quantity)}
@@ -181,11 +216,19 @@
             </tbody>
           </table>
         </div>
+        {#if data.itemTotal > data.items.length}
+          <div class="card-body" style="border-top: 1px solid var(--border);">
+            <p class="small muted">
+              Showing {data.items.length} of {data.itemTotal} items.
+              <a class="link" href={h(`/items?location=${location.id}`)}>View all in the catalogue</a>.
+            </p>
+          </div>
+        {/if}
       {:else}
         <div class="empty" style="padding: 34px 20px;">
           <div class="empty-icon" style="width: 42px; height: 42px;"><Icon name="box" size={20} /></div>
           <p class="small">
-            Nothing is stored directly here.
+            Nothing is stored here or in any sublocation.
             <a class="link" href={h(`/items/new?location=${location.id}`)}>Add an item</a>.
           </p>
         </div>

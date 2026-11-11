@@ -1083,6 +1083,12 @@ table.data th.num {
   color: var(--faint);
   display: inline-flex;
 }
+.breadcrumbs.inline {
+  display: inline-flex;
+  margin-bottom: 0;
+  font-size: 12px;
+  gap: 4px;
+}
 
 .gallery {
   display: flex;
