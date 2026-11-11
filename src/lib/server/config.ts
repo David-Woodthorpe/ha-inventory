@@ -55,4 +55,4 @@ export const defaultCurrency = (env.DEFAULT_CURRENCY || optionText('default_curr
 export const pricingEnabled = parseBoolean(env.ENABLE_PRICING) ?? optionBoolean('enable_pricing') ?? true;
 export const apiKey = env.INVENTORY_API_KEY || optionText('api_key');
 export const publicBaseUrl = (env.PUBLIC_BASE_URL || optionText('public_url')).replace(/\/+$/, '');
-export const appVersion = '1.0.4';
+export const appVersion = '1.0.5';

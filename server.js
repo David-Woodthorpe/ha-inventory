@@ -86,9 +86,11 @@ function alignForwardedHeadersWithOrigin(req) {
   const ingressPath = firstHeader(req.headers['x-ingress-path']);
   const fetchSite = firstHeader(req.headers['sec-fetch-site']).toLowerCase();
 
-  if (!originHeader) {
-    // Home Assistant can strip Origin from proxied requests. Browsers still
-    // mark same-origin form posts, so synthesise the origin they used.
+  if (!originHeader || originHeader === 'null') {
+    // Home Assistant renders the ingress panel in a sandboxed iframe, so the
+    // browser reports an opaque origin ("Origin: null") on form posts. It still
+    // marks same-origin requests, so substitute the forwarded origin. This only
+    // applies through ingress; a cross-site form is marked cross-site.
     if (isFormSubmission(req) && ingressPath && fetchSite === 'same-origin') {
       const proto = firstHeader(req.headers['x-forwarded-proto']);
       const forwardedHost = firstHeader(req.headers['x-forwarded-host']);
