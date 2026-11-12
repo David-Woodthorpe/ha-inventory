@@ -73,7 +73,7 @@ export const actions = {
     updateLocation(params.id, { ha_enabled: !location.ha_enabled });
     return {
       success: location.ha_enabled
-        ? 'Location and its contents are no longer published to Home Assistant'
+        ? 'Location and its sublocations are no longer published to Home Assistant'
         : 'Location will be published to Home Assistant'
     };
   },

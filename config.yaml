@@ -1,5 +1,5 @@
 name: Inventory
-version: "1.0.8"
+version: "1.0.9"
 slug: inventory
 description: Self-hosted inventory for electronics parts, tools and workshop supplies.
 arch:

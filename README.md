@@ -265,8 +265,9 @@ Publishing is opt-in per item and per location. Existing entities keep
 publishing when you upgrade, but newly created items and locations start
 unpublished. Tick **Publish this item/location to Home Assistant** on the edit
 form, or use the button on the detail page, to add them. Turning off a location
-also removes its sublocations and every item inside it; re-enabling restores
-them. The hub totals and low-stock alert only count published items.
+also removes its sublocations, but items you published individually stay
+visible under the **Inventory** hub, so vital low-stock items can still be
+monitored. The hub totals and low-stock alert only count published items.
 
 What appears in Home Assistant:
 

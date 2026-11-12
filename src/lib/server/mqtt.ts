@@ -386,19 +386,16 @@ function buildDiscovery(allLocations: Location[], allItems: Item[]) {
   const allLocationsById = new Map(allLocations.map((location) => [location.id, location]));
 
   // A location is published only when it and every ancestor are enabled, so
-  // turning off a room also hides its sublocations and the items inside it.
+  // turning off a room also hides its sublocations.
   const locations = allLocations.filter(
     (location) =>
       location.ha_enabled &&
       location.path_ids.every((id) => allLocationsById.get(id)?.ha_enabled)
   );
-  const publishedLocationIds = new Set(locations.map((location) => location.id));
-
-  // Items are opt-in and disappear when their location is hidden. Items with no
-  // location can still be published directly under the hub.
-  const items = allItems.filter(
-    (item) => item.ha_enabled && (!item.location_id || publishedLocationIds.has(item.location_id))
-  );
+  // Items are independently opt-in. An explicitly published item stays visible
+  // even when its location is hidden, so vital low-stock items can still be
+  // monitored. Those items attach to the hub instead of the hidden location.
+  const items = allItems.filter((item) => item.ha_enabled);
 
   const locationsById = new Map(locations.map((location) => [location.id, location]));
   const itemsByLocation = new Map<string, Item[]>();

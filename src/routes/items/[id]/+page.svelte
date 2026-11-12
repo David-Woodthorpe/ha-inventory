@@ -196,7 +196,7 @@
             {#if item.ha_enabled}
               <span class="badge badge-accent"><Icon name="home" size={11} /> Published</span>
               {#if data.locationPublished === false}
-                <span class="small muted">· location is not published</span>
+                <span class="small muted">· shown under the Inventory hub because its location is hidden</span>
               {/if}
             {:else}
               <span class="faint">Not published</span>

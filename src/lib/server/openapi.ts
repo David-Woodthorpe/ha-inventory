@@ -272,7 +272,7 @@ export const openapi = {
               ha_enabled: {
                 type: 'boolean',
                 description:
-                  'Publish this location to Home Assistant. Turning it off also hides its sublocations and items.'
+                  'Publish this location to Home Assistant. Turning it off also hides its sublocations. Individually published items stay visible.'
               }
             }
           })
@@ -581,7 +581,7 @@ export const openapi = {
             type: 'boolean',
             default: false,
             description:
-              'Publish this item to Home Assistant via MQTT discovery. New items default to false.'
+              'Publish this item to Home Assistant via MQTT discovery. New items default to false. Published items stay visible even when their location is hidden.'
           }
         }
       },

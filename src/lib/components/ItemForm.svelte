@@ -189,7 +189,8 @@
             Publish this item to Home Assistant
           </label>
           <span class="hint">
-            New items are not published by default. The item also needs its location to be published.
+            New items are not published by default. Published items stay visible even when their
+            location is not published, so vital stock can still be monitored.
           </span>
         </div>
       </div>

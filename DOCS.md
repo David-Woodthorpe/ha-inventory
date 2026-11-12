@@ -97,8 +97,11 @@ locations that already existed before upgrading stay published. Use the
 the **Publish to Home Assistant** button on the detail page.
 
 - Turning off an item removes only that item.
-- Turning off a location removes the location, its sublocations and every item
-  inside it. Re-enabling it restores them, subject to their own settings.
+- Turning off a location removes the location and its sublocations. Items you
+  published individually stay visible, so vital low-stock items can still be
+  monitored.
+- An item whose location is hidden attaches to the **Inventory** hub instead of
+  the location device.
 - A child location stays hidden while any parent location is unpublished.
 - The hub totals, low-stock counts and Contents tables only include published
   items.

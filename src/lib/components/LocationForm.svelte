@@ -104,8 +104,8 @@
             Publish this location to Home Assistant
           </label>
           <span class="hint">
-            New locations are not published by default. Turning this off also hides all sublocations
-            and items inside it.
+            New locations are not published by default. Turning this off hides this location and its
+            sublocations. Items you published separately stay visible.
           </span>
         </div>
       </div>
