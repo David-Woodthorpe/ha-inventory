@@ -2,9 +2,22 @@ import { fail, redirect } from '@sveltejs/kit';
 import { createAttachment, deleteAttachment, getAttachment } from '$lib/server/attachments';
 import { ApiError } from '$lib/server/errors';
 import { adjustStock, deleteItem, getItem, updateItem } from '$lib/server/items';
+import { getLocations } from '$lib/server/locations';
 
 export function load({ params }: { params: { id: string } }) {
-  return { item: getItem(params.id) };
+  const item = getItem(params.id);
+  const locations = getLocations();
+  const byId = new Map(locations.map((location) => [location.id, location]));
+  const location = item.location_id ? byId.get(item.location_id) : undefined;
+  // An item is only published when its own toggle is on and every location in
+  // its path is published. Null means the item has no location.
+  const locationPublished = location
+    ? location.path_ids.every((id) => byId.get(id)?.ha_enabled)
+    : null;
+  return {
+    item,
+    locationPublished
+  };
 }
 
 function actionFailure(error: unknown) {
@@ -63,6 +76,16 @@ export const actions = {
     const item = getItem(params.id);
     updateItem(params.id, { archived: !item.archived });
     return { success: item.archived ? 'Item restored' : 'Item archived' };
+  },
+
+  toggleHomeAssistant: async ({ params }: { params: { id: string } }) => {
+    const item = getItem(params.id);
+    updateItem(params.id, { ha_enabled: !item.ha_enabled });
+    return {
+      success: item.ha_enabled
+        ? 'Item is no longer published to Home Assistant'
+        : 'Item will be published to Home Assistant'
+    };
   },
 
   delete: async ({ params }: { params: { id: string } }) => {

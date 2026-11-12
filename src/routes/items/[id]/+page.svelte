@@ -65,6 +65,9 @@
       {#if item.archived}
         <span class="badge badge-outline">Archived</span>
       {/if}
+      {#if item.ha_enabled}
+        <span class="badge badge-accent"><Icon name="home" size={11} /> Home Assistant</span>
+      {/if}
       {#if item.sku}
         <span class="mono small muted">{item.sku}</span>
       {/if}
@@ -185,6 +188,18 @@
               <a class="link" href={h(`/locations/${item.location.id}`)}>{item.location.path_label}</a>
             {:else}
               <span class="faint">Unassigned</span>
+            {/if}
+          </dd>
+
+          <dt>Home Assistant</dt>
+          <dd>
+            {#if item.ha_enabled}
+              <span class="badge badge-accent"><Icon name="home" size={11} /> Published</span>
+              {#if data.locationPublished === false}
+                <span class="small muted">· location is not published</span>
+              {/if}
+            {:else}
+              <span class="faint">Not published</span>
             {/if}
           </dd>
 
@@ -429,6 +444,12 @@
         </div>
         <div class="divider"></div>
         <div class="row">
+          <form method="POST" action="?/toggleHomeAssistant">
+            <button class="btn btn-sm" type="submit">
+              <Icon name="home" size={14} />
+              {item.ha_enabled ? 'Stop publishing to Home Assistant' : 'Publish to Home Assistant'}
+            </button>
+          </form>
           <form method="POST" action="?/archive">
             <button class="btn btn-sm" type="submit">
               <Icon name="archive" size={14} />

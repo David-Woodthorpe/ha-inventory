@@ -2,11 +2,15 @@ import { fail, redirect } from '@sveltejs/kit';
 import { createAttachment, deleteAttachment, getAttachment, listAttachments } from '$lib/server/attachments';
 import { ApiError } from '$lib/server/errors';
 import { listItems } from '$lib/server/items';
-import { deleteLocation, getLocation, getLocations } from '$lib/server/locations';
+import { deleteLocation, getLocation, getLocations, updateLocation } from '$lib/server/locations';
 
 export function load({ params }: { params: { id: string } }) {
   const location = getLocation(params.id);
-  const children = getLocations().filter((entry) => entry.parent_id === location.id);
+  const allLocations = getLocations();
+  const children = allLocations.filter((entry) => entry.parent_id === location.id);
+  const ancestorsEnabled = location.path_ids
+    .slice(0, -1)
+    .every((id) => allLocations.find((entry) => entry.id === id)?.ha_enabled);
   const itemResult = listItems({
     location_id: location.id,
     include_descendants: true,
@@ -19,6 +23,7 @@ export function load({ params }: { params: { id: string } }) {
     location,
     parent,
     children,
+    ancestorsEnabled,
     items,
     itemTotal: itemResult.total,
     photos: attachments.filter((attachment) => attachment.kind === 'photo'),
@@ -61,6 +66,16 @@ export const actions = {
     } catch (error) {
       return actionFailure(error);
     }
+  },
+
+  toggleHomeAssistant: async ({ params }: { params: { id: string } }) => {
+    const location = getLocation(params.id);
+    updateLocation(params.id, { ha_enabled: !location.ha_enabled });
+    return {
+      success: location.ha_enabled
+        ? 'Location and its contents are no longer published to Home Assistant'
+        : 'Location will be published to Home Assistant'
+    };
   },
 
   delete: async ({ params }: { params: { id: string } }) => {

@@ -11,7 +11,7 @@ import {
   mqttTopicPrefix,
   publicBaseUrl
 } from './config';
-import { itemSummaryCounts, listItems } from './items';
+import { listItems } from './items';
 import { getLocations } from './locations';
 
 /**
@@ -376,9 +376,30 @@ function addConfig(
   configs.set(discoveryTopic(component, objectId), JSON.stringify({ ...payload, origin: origin() }));
 }
 
-function buildDiscovery(locations: Location[], items: Item[]) {
+function roundQuantity(value: number): number {
+  return Math.round((value + Number.EPSILON) * 1e6) / 1e6;
+}
+
+function buildDiscovery(allLocations: Location[], allItems: Item[]) {
   const configs = new Map<string, string>();
   const states = new Map<string, string>();
+  const allLocationsById = new Map(allLocations.map((location) => [location.id, location]));
+
+  // A location is published only when it and every ancestor are enabled, so
+  // turning off a room also hides its sublocations and the items inside it.
+  const locations = allLocations.filter(
+    (location) =>
+      location.ha_enabled &&
+      location.path_ids.every((id) => allLocationsById.get(id)?.ha_enabled)
+  );
+  const publishedLocationIds = new Set(locations.map((location) => location.id));
+
+  // Items are opt-in and disappear when their location is hidden. Items with no
+  // location can still be published directly under the hub.
+  const items = allItems.filter(
+    (item) => item.ha_enabled && (!item.location_id || publishedLocationIds.has(item.location_id))
+  );
+
   const locationsById = new Map(locations.map((location) => [location.id, location]));
   const itemsByLocation = new Map<string, Item[]>();
 
@@ -392,12 +413,11 @@ function buildDiscovery(locations: Location[], items: Item[]) {
   }
 
   // ---- Inventory hub -------------------------------------------------------
-  const summary = itemSummaryCounts();
   const lowStockItems = items.filter((item) => item.low_stock);
   const summaryState = {
-    item_count: summary.item_count,
-    total_units: summary.total_units,
-    low_stock: summary.low_stock_count,
+    item_count: items.length,
+    total_units: roundQuantity(items.reduce((sum, item) => sum + item.quantity, 0)),
+    low_stock: lowStockItems.length,
     location_count: locations.length,
     low_stock_items: lowStockItems.map((item) => itemAttributes(item, null))
   };
@@ -445,6 +465,7 @@ function buildDiscovery(locations: Location[], items: Item[]) {
     const rows = contents.map((item) => itemAttributes(item, location));
     const lowStock = rows.filter((row) => row.low_stock).length;
     const totalQuantity = contents.reduce((sum, item) => sum + item.quantity, 0);
+    const directItemCount = contents.filter((item) => item.location_id === location.id).length;
     const childLocations = locations
       .filter((entry) => entry.parent_id === location.id)
       .map((entry) => ({ id: entry.id, name: entry.name }));
@@ -454,8 +475,8 @@ function buildDiscovery(locations: Location[], items: Item[]) {
       stateTopic,
       JSON.stringify({
         item_count: contents.length,
-        direct_item_count: location.direct_item_count,
-        total_quantity: Math.round((totalQuantity + Number.EPSILON) * 1e6) / 1e6,
+        direct_item_count: directItemCount,
+        total_quantity: roundQuantity(totalQuantity),
         low_stock: lowStock,
         child_locations: childLocations,
         items: rows,

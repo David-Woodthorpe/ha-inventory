@@ -20,6 +20,7 @@ export interface Location {
   direct_item_count: number;
   total_item_count: number;
   child_count: number;
+  ha_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -71,6 +72,7 @@ export interface Item {
   tags: string[];
   custom_fields: Record<string, unknown>;
   archived: boolean;
+  ha_enabled: boolean;
   low_stock: boolean;
   total_value: number | null;
   photo: Attachment | null;

@@ -89,12 +89,26 @@ optionally `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_SSL` and `MQTT_PORT`. Use the
 host's LAN IP rather than `localhost`, because `localhost` inside the container
 is the container itself. Set `MQTT_ENABLED=false` to disable discovery.
 
+### Choosing what to publish
+
+Publishing is opt-in. New items and locations start unpublished, while items and
+locations that already existed before upgrading stay published. Use the
+**Publish this item/location to Home Assistant** checkbox on the edit form, or
+the **Publish to Home Assistant** button on the detail page.
+
+- Turning off an item removes only that item.
+- Turning off a location removes the location, its sublocations and every item
+  inside it. Re-enabling it restores them, subject to their own settings.
+- A child location stays hidden while any parent location is unpublished.
+- The hub totals, low-stock counts and Contents tables only include published
+  items.
+
 ### Entities
 
 | Device | Entities | Details |
 | --- | --- | --- |
-| **Inventory** (hub) | **Items** sensor, **Low stock items** sensor, **Low stock alert** binary sensor | Totals across the whole inventory. The alert sensor is `problem` when anything is low. |
-| Each **location** | **Contents** sensor, **Low stock** binary sensor | The sensor state is the number of items in the location *and its sublocations*. Its attributes contain the item list and a Markdown table. The binary sensor is `problem` when any item below it is low. |
+| **Inventory** (hub) | **Items** sensor, **Low stock items** sensor, **Low stock alert** binary sensor | Totals across the published inventory. The alert sensor is `problem` when anything published is low. |
+| Each **location** | **Contents** sensor, **Low stock** binary sensor | The sensor state is the number of published items in the location *and its sublocations*. Its attributes contain the item list and a Markdown table. The binary sensor is `problem` when any published item below it is low. |
 | Each **item** | **Quantity** sensor, **Low stock** binary sensor | The quantity sensor uses the item's unit and includes SKU, category, location and threshold as attributes. The low-stock binary sensor is `problem` when `quantity <= min_quantity` and `min_quantity > 0`. |
 
 Locations and items are linked with MQTT `via_device`, so the device page shows

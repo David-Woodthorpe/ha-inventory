@@ -43,7 +43,8 @@ const itemColumns = [
   'notes',
   'tags',
   'custom_fields',
-  'archived'
+  'archived',
+  'ha_enabled'
 ] as const;
 
 function escapeLike(value: string): string {
@@ -211,7 +212,7 @@ function withoutPricing(input: unknown): unknown {
 
 function serializeValue(column: (typeof itemColumns)[number], value: unknown): SqlValue {
   if (column === 'tags' || column === 'custom_fields') return JSON.stringify(value ?? (column === 'tags' ? [] : {}));
-  if (column === 'archived') return value ? 1 : 0;
+  if (column === 'archived' || column === 'ha_enabled') return value ? 1 : 0;
   if (typeof value === 'number') return value;
   if (value === undefined || value === null) return null;
   return String(value);
@@ -253,6 +254,7 @@ export function createItem(input: unknown): ItemDetail {
     JSON.stringify(normalizeTags(data.tags)),
     JSON.stringify(data.custom_fields ?? {}),
     data.archived ? 1 : 0,
+    data.ha_enabled ? 1 : 0,
     now,
     now
   ];
@@ -262,7 +264,7 @@ export function createItem(input: unknown): ItemDetail {
       `INSERT INTO items (
         id, name, sku, description, category, quantity, unit, min_quantity, location_id,
         manufacturer, mpn, supplier, supplier_url, price, currency, datasheet_url, notes,
-        tags, custom_fields, archived, created_at, updated_at
+        tags, custom_fields, archived, ha_enabled, created_at, updated_at
       ) VALUES (${values.map(() => '?').join(', ')})`
     ).run(...values);
     if (quantity > 0) addMovement(id, quantity, 'initial', 'Initial stock level');

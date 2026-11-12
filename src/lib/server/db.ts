@@ -75,6 +75,18 @@ const migrations: string[] = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_movements_item ON stock_movements(item_id, created_at);
+  `,
+  // v2 — per-item and per-location Home Assistant publishing
+  //
+  // New rows default to 0 so a large inventory does not flood Home Assistant
+  // with devices. The UPDATE keeps every row that existed before this migration
+  // published, so upgrading does not remove entities that are already in use.
+  `
+  ALTER TABLE items ADD COLUMN ha_enabled INTEGER NOT NULL DEFAULT 0;
+  UPDATE items SET ha_enabled = 1;
+
+  ALTER TABLE locations ADD COLUMN ha_enabled INTEGER NOT NULL DEFAULT 0;
+  UPDATE locations SET ha_enabled = 1;
   `
 ];
 

@@ -32,6 +32,7 @@ export interface ItemFormValues {
   notes: string;
   tags: string;
   archived: boolean;
+  ha_enabled: boolean;
   custom_fields: CustomFieldValue[];
 }
 
@@ -40,4 +41,5 @@ export interface LocationFormValues {
   parent_id: string;
   description: string;
   code: string;
+  ha_enabled: boolean;
 }

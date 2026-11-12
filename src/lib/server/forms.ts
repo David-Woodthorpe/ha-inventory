@@ -26,6 +26,7 @@ export function emptyItemFormValues(currency = 'GBP'): ItemFormValues {
     notes: '',
     tags: '',
     archived: false,
+    ha_enabled: false,
     custom_fields: []
   };
 }
@@ -50,6 +51,7 @@ export function itemToFormValues(item: Item): ItemFormValues {
     notes: item.notes ?? '',
     tags: item.tags.join(', '),
     archived: item.archived,
+    ha_enabled: item.ha_enabled,
     custom_fields: Object.entries(item.custom_fields).map(([key, value]) => ({
       key,
       value: typeof value === 'string' ? value : JSON.stringify(value)
@@ -91,6 +93,7 @@ export function readItemForm(form: FormData): { values: ItemFormValues; input: R
     notes: text(form, 'notes'),
     tags: text(form, 'tags'),
     archived: form.get('archived') === 'on',
+    ha_enabled: form.get('ha_enabled') === 'on',
     custom_fields: customRows
   };
 
@@ -119,14 +122,15 @@ export function readItemForm(form: FormData): { values: ItemFormValues; input: R
       .map((tag) => tag.trim())
       .filter(Boolean),
     custom_fields: customFields,
-    archived: values.archived
+    archived: values.archived,
+    ha_enabled: values.ha_enabled
   };
 
   return { values, input };
 }
 
 export function emptyLocationFormValues(parentId = ''): LocationFormValues {
-  return { name: '', parent_id: parentId, description: '', code: '' };
+  return { name: '', parent_id: parentId, description: '', code: '', ha_enabled: false };
 }
 
 export function locationToFormValues(location: Location): LocationFormValues {
@@ -134,7 +138,8 @@ export function locationToFormValues(location: Location): LocationFormValues {
     name: location.name,
     parent_id: location.parent_id ?? '',
     description: location.description ?? '',
-    code: location.code ?? ''
+    code: location.code ?? '',
+    ha_enabled: location.ha_enabled
   };
 }
 
@@ -146,7 +151,8 @@ export function readLocationForm(form: FormData): {
     name: text(form, 'name'),
     parent_id: text(form, 'parent_id'),
     description: text(form, 'description'),
-    code: text(form, 'code')
+    code: text(form, 'code'),
+    ha_enabled: form.get('ha_enabled') === 'on'
   };
   return {
     values,
@@ -154,7 +160,8 @@ export function readLocationForm(form: FormData): {
       name: values.name,
       parent_id: values.parent_id,
       description: values.description,
-      code: values.code
+      code: values.code,
+      ha_enabled: values.ha_enabled
     }
   };
 }

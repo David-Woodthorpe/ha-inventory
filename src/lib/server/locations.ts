@@ -11,6 +11,7 @@ interface LocationRow {
   description: string | null;
   code: string | null;
   sort_order: number;
+  ha_enabled: number;
   created_at: string;
   updated_at: string;
 }
@@ -82,6 +83,7 @@ export function getLocations(): Location[] {
       direct_item_count: counts.get(row.id) ?? 0,
       total_item_count: totals.get(row.id) ?? 0,
       child_count: childCounts.get(row.id) ?? 0,
+      ha_enabled: Boolean(row.ha_enabled),
       created_at: row.created_at,
       updated_at: row.updated_at
     } satisfies Location;
@@ -131,8 +133,8 @@ export function createLocation(input: unknown): Location {
   const id = randomUUID();
   const now = nowIso();
   db.prepare(
-    `INSERT INTO locations (id, name, parent_id, description, code, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO locations (id, name, parent_id, description, code, sort_order, ha_enabled, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     data.name,
@@ -140,6 +142,7 @@ export function createLocation(input: unknown): Location {
     data.description ?? null,
     data.code ?? null,
     data.sort_order ?? 0,
+    data.ha_enabled ? 1 : 0,
     now,
     now
   );
@@ -168,12 +171,13 @@ export function updateLocation(id: string, input: unknown): Location {
     ['parent_id', 'parent_id'],
     ['description', 'description'],
     ['code', 'code'],
-    ['sort_order', 'sort_order']
+    ['sort_order', 'sort_order'],
+    ['ha_enabled', 'ha_enabled']
   ];
   for (const [key, column] of map) {
     if (data[key] !== undefined) {
       fields.push(`${column} = ?`);
-      values.push(data[key] === undefined ? null : data[key]);
+      values.push(key === 'ha_enabled' ? (data.ha_enabled ? 1 : 0) : data[key] === undefined ? null : data[key]);
     }
   }
   if (!fields.length) return existing;

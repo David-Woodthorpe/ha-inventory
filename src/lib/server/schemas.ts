@@ -49,7 +49,8 @@ export const itemFields = {
   notes: optionalText(20000),
   tags: z.array(z.string().trim().min(1).max(60)).max(100).optional(),
   custom_fields: z.record(z.string(), z.unknown()).optional(),
-  archived: optionalBoolean
+  archived: optionalBoolean,
+  ha_enabled: optionalBoolean
 };
 
 export const itemCreateSchema = z.object(itemFields);
@@ -77,7 +78,8 @@ export const locationCreateSchema = z.object({
   parent_id: optionalId,
   description: optionalText(2000),
   code: optionalText(60),
-  sort_order: optionalNumber(Number.NEGATIVE_INFINITY)
+  sort_order: optionalNumber(Number.NEGATIVE_INFINITY),
+  ha_enabled: optionalBoolean
 });
 
 export const locationUpdateSchema = z
@@ -86,7 +88,8 @@ export const locationUpdateSchema = z
     parent_id: optionalId,
     description: optionalText(2000),
     code: optionalText(60),
-    sort_order: optionalNumber(Number.NEGATIVE_INFINITY)
+    sort_order: optionalNumber(Number.NEGATIVE_INFINITY),
+    ha_enabled: optionalBoolean
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'Provide at least one field to update'

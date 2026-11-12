@@ -97,6 +97,17 @@
             placeholder="What is stored here? Any labelling notes?"
           >{values.description}</textarea>
         </div>
+
+        <div class="field full">
+          <label class="check">
+            <input type="checkbox" name="ha_enabled" checked={values.ha_enabled} />
+            Publish this location to Home Assistant
+          </label>
+          <span class="hint">
+            New locations are not published by default. Turning this off also hides all sublocations
+            and items inside it.
+          </span>
+        </div>
       </div>
     </div>
   </div>

@@ -261,16 +261,23 @@ the **Mosquitto broker** add-on and add the **MQTT** integration under
 **Settings → Devices & services** first. The Inventory add-on requests access to
 the Supervisor's MQTT service, so no broker address or credentials are needed.
 
+Publishing is opt-in per item and per location. Existing entities keep
+publishing when you upgrade, but newly created items and locations start
+unpublished. Tick **Publish this item/location to Home Assistant** on the edit
+form, or use the button on the detail page, to add them. Turning off a location
+also removes its sublocations and every item inside it; re-enabling restores
+them. The hub totals and low-stock alert only count published items.
+
 What appears in Home Assistant:
 
-- An **Inventory** hub device with the total item count, total units, low-stock
-  count and a **Low stock alert** binary sensor.
+- An **Inventory** hub device with the published item count, total units,
+  low-stock count and a **Low stock alert** binary sensor.
 - One device per **location**, named with its full path (for example
-  `Workshop / Shelf A`). Its **Contents** sensor state is the number of items in
-  that location and all sublocations. Attributes include `items` (a list of
-  name, quantity, unit, SKU, location and low-stock flag), `contents` (a
-  ready-made Markdown table) and `child_locations`. A **Low stock** binary
-  sensor turns on when any item below it needs restocking.
+  `Workshop / Shelf A`). Its **Contents** sensor state is the number of
+  published items in that location and all sublocations. Attributes include
+  `items` (a list of name, quantity, unit, SKU, location and low-stock flag),
+  `contents` (a ready-made Markdown table) and `child_locations`. A **Low
+  stock** binary sensor turns on when any item below it needs restocking.
 - One device per **item**, with a **Quantity** sensor and a **Low stock** binary
   sensor (`device_class: problem`) that can trigger automations.
 - Devices are connected in a hierarchy with `via_device`, and the top-level

@@ -66,6 +66,9 @@
       {#if location.code}
         <span class="badge badge-outline mono">{location.code}</span>
       {/if}
+      {#if location.ha_enabled}
+        <span class="badge badge-accent"><Icon name="home" size={11} /> Home Assistant</span>
+      {/if}
     </div>
     <h1 class="detail-title">{location.name}</h1>
     {#if location.description}
@@ -76,6 +79,11 @@
       <span class="badge">{plural(location.total_item_count, 'item')} including sublocations</span>
       <span class="badge">{plural(data.children.length, 'sublocation')}</span>
     </div>
+    {#if location.ha_enabled && !data.ancestorsEnabled}
+      <p class="small muted" style="margin-top: 8px;">
+        A parent location is not published, so this location is hidden in Home Assistant.
+      </p>
+    {/if}
   </div>
 
   <div class="page-actions">
@@ -83,6 +91,12 @@
       <Icon name="plus" size={15} />
       Add sublocation
     </a>
+    <form method="POST" action="?/toggleHomeAssistant">
+      <button class="btn" type="submit">
+        <Icon name="home" size={15} />
+        {location.ha_enabled ? 'Stop publishing' : 'Publish to Home Assistant'}
+      </button>
+    </form>
     <a class="btn" href={h(`/locations/${location.id}/edit`)}>
       <Icon name="edit" size={15} />
       Edit

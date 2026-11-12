@@ -182,6 +182,16 @@
             Archived (hidden from normal lists)
           </label>
         </div>
+
+        <div class="field full">
+          <label class="check">
+            <input type="checkbox" name="ha_enabled" checked={values.ha_enabled} />
+            Publish this item to Home Assistant
+          </label>
+          <span class="hint">
+            New items are not published by default. The item also needs its location to be published.
+          </span>
+        </div>
       </div>
     </div>
   </div>

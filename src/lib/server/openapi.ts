@@ -222,7 +222,12 @@ export const openapi = {
               parent_id: { type: 'string', format: 'uuid', nullable: true, example: null },
               description: { type: 'string', nullable: true },
               code: { type: 'string', nullable: true },
-              sort_order: { type: 'integer', default: 0 }
+              sort_order: { type: 'integer', default: 0 },
+              ha_enabled: {
+                type: 'boolean',
+                default: false,
+                description: 'Publish this location to Home Assistant. New locations default to false.'
+              }
             }
           })
         },
@@ -263,7 +268,12 @@ export const openapi = {
               parent_id: { type: 'string', format: 'uuid', nullable: true },
               description: { type: 'string', nullable: true },
               code: { type: 'string', nullable: true },
-              sort_order: { type: 'integer' }
+              sort_order: { type: 'integer' },
+              ha_enabled: {
+                type: 'boolean',
+                description:
+                  'Publish this location to Home Assistant. Turning it off also hides its sublocations and items.'
+              }
             }
           })
         },
@@ -509,6 +519,7 @@ export const openapi = {
           direct_item_count: { type: 'integer' },
           total_item_count: { type: 'integer' },
           child_count: { type: 'integer' },
+          ha_enabled: { type: 'boolean' },
           created_at: { type: 'string', format: 'date-time' },
           updated_at: { type: 'string', format: 'date-time' }
         }
@@ -565,7 +576,13 @@ export const openapi = {
           notes: { type: 'string', nullable: true },
           tags: { type: 'array', items: { type: 'string' }, example: ['through-hole', '10k'] },
           custom_fields: { type: 'object', additionalProperties: true },
-          archived: { type: 'boolean', default: false }
+          archived: { type: 'boolean', default: false },
+          ha_enabled: {
+            type: 'boolean',
+            default: false,
+            description:
+              'Publish this item to Home Assistant via MQTT discovery. New items default to false.'
+          }
         }
       },
       Item: {
@@ -596,6 +613,7 @@ export const openapi = {
           tags: { type: 'array', items: { type: 'string' } },
           custom_fields: { type: 'object', additionalProperties: true },
           archived: { type: 'boolean' },
+          ha_enabled: { type: 'boolean' },
           low_stock: { type: 'boolean' },
           ...(pricingEnabled ? { total_value: { type: 'number', nullable: true } } : {}),
           photo: { allOf: [attachment], nullable: true },

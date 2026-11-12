@@ -24,6 +24,7 @@ export interface ItemRow {
   tags: string;
   custom_fields: string;
   archived: number;
+  ha_enabled: number;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +92,7 @@ export function toItem(row: ItemRow, ctx: HydrateContext): ItemSummary {
     tags,
     custom_fields: customFields,
     archived: Boolean(row.archived),
+    ha_enabled: Boolean(row.ha_enabled),
     low_stock: lowStock,
     total_value: pricingEnabled && row.price !== null ? round2(row.price * row.quantity) : null,
     photo: photos[0] ?? null,

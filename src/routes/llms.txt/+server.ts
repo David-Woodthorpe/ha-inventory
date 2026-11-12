@@ -80,7 +80,8 @@ ${pricingFields}  "datasheet_url": "https://...",
   "notes": "Bought in 2025",
   "tags": ["through-hole", "10k"],
   "custom_fields": {"tolerance": "5%", "power": "0.25W"},
-  "archived": false
+  "archived": false,
+  "ha_enabled": false
 }
 
 ## Examples
@@ -111,6 +112,7 @@ curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
 ## Notes
 - Quantities are numbers and may be fractional (e.g. 2.5 metres of wire).
 - low_stock is true when min_quantity > 0 and quantity <= min_quantity.
+- ha_enabled controls whether an item or location is published to Home Assistant with MQTT discovery. New items and locations default to false. Turning off a location also hides its sublocations and items.
 ${pricingNote}
 - Deleting a location fails with 409 unless it is empty (no children, items or attachments).
 - Uploads are stored in the server's data/uploads directory; max size is controlled by MAX_UPLOAD_MB.
