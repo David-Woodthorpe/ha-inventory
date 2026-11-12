@@ -65,6 +65,16 @@ When the app is behind ingress, set `public_url` only if you also publish it at
 a stable address. Ingress URLs contain a per-installation token and are not
 suitable for `/llms.txt`.
 
+## Adding several similar items
+
+To catalogue a batch of similar parts, such as hard drives with different serial numbers, open an
+existing item and choose **Add another**, or use **Save and add another** on the edit form. The add
+form is copied, the SKU is cleared and focused, and every other field is kept.
+
+A barcode scanner that types the code and presses Enter will save the item and open another
+prefilled copy, so you can scan a whole stack without touching the mouse. Choose **Cancel** to stop
+and return to the source item.
+
 ## Home Assistant MQTT discovery
 
 Locations can be published to Home Assistant as MQTT devices, with item

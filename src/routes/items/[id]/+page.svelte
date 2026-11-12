@@ -83,6 +83,10 @@
       <Icon name="edit" size={15} />
       Edit
     </a>
+    <a class="btn" href={h(`/items/new?copy=${item.id}&focus=sku`)}>
+      <Icon name="plus" size={15} />
+      Add another
+    </a>
     <form method="POST" action="?/archive">
       <button class="btn" type="submit">
         <Icon name="archive" size={15} />

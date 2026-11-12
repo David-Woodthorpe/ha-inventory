@@ -70,4 +70,4 @@ export const mqttTopicPrefix = topicPrefix(
   'inventory'
 );
 
-export const appVersion = '1.1.1';
+export const appVersion = '1.2.0';

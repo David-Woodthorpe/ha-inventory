@@ -16,10 +16,11 @@ export function load({ params }: { params: { id: string } }) {
 export const actions = {
   default: async ({ request, params }: { request: Request; params: { id: string } }) => {
     const form = await request.formData();
+    const intent = form.get('intent');
     const { values, input } = readItemForm(form);
     try {
       const item = updateItem(params.id, input);
-      redirect(303, `/items/${item.id}`);
+      redirect(303, intent === 'add_another' ? `/items/new?copy=${item.id}&focus=sku` : `/items/${item.id}`);
     } catch (error) {
       if (error instanceof ApiError) {
         return fail(400, {

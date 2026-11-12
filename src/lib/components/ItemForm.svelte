@@ -10,20 +10,51 @@
     values,
     options,
     submitLabel = 'Save item',
+    addAnotherLabel = 'Save and add another',
     cancelHref = '/items',
     error = '',
-    details = []
+    details = [],
+    scanMode = false,
+    focusSku = false
   }: {
     values: ItemFormValues;
     options: ItemFormOptions;
     submitLabel?: string;
+    addAnotherLabel?: string;
     cancelHref?: string;
     error?: string;
     details?: Array<{ field: string; message: string }>;
+    scanMode?: boolean;
+    focusSku?: boolean;
   } = $props();
 
   const cancel = $derived(withBase(page.data.ingressPath ?? '', cancelHref));
   const pricingEnabled = $derived(page.data.pricingEnabled ?? true);
+
+  // Focusing through an action rather than the autofocus attribute avoids the
+  // a11y warning and lets us select any leftover text so a scanner replaces it.
+  function focusSelect(node: HTMLInputElement, enabled: boolean) {
+    let frame: number | undefined;
+
+    function focus() {
+      if (!enabled) return;
+      frame = requestAnimationFrame(() => {
+        node.focus();
+        node.select();
+      });
+    }
+
+    focus();
+    return {
+      update(next: boolean) {
+        enabled = next;
+        focus();
+      },
+      destroy() {
+        if (frame !== undefined) cancelAnimationFrame(frame);
+      }
+    };
+  }
 </script>
 
 <form method="POST" class="stack">
@@ -72,7 +103,11 @@
             value={values.sku}
             placeholder="e.g. RES-10K-025"
             maxlength="120"
+            use:focusSelect={focusSku}
           />
+          {#if focusSku}
+            <span class="hint">Scan or type the SKU, then press Enter to save and add another.</span>
+          {/if}
         </div>
 
         <div class="field">
@@ -309,10 +344,25 @@
   </div>
 
   <div class="form-actions">
-    <button class="btn btn-primary" type="submit">
-      <Icon name="check" size={16} />
-      {submitLabel}
-    </button>
+    {#if scanMode}
+      <button class="btn btn-primary" type="submit" name="intent" value="add_another">
+        <Icon name="plus" size={16} />
+        {addAnotherLabel}
+      </button>
+      <button class="btn" type="submit" name="intent" value="save">
+        <Icon name="check" size={16} />
+        {submitLabel}
+      </button>
+    {:else}
+      <button class="btn btn-primary" type="submit" name="intent" value="save">
+        <Icon name="check" size={16} />
+        {submitLabel}
+      </button>
+      <button class="btn" type="submit" name="intent" value="add_another">
+        <Icon name="plus" size={16} />
+        {addAnotherLabel}
+      </button>
+    {/if}
     <a class="btn btn-ghost" href={cancel}>Cancel</a>
   </div>
 </form>

@@ -27,6 +27,8 @@ Workshop
 - **Stock movements** — every change is recorded with a reason and note; quick +/- buttons and manual
   adjustments. Quantities may be fractional (metres of wire, grams of paste).
 - **Photos and documents** — upload images, datasheets, manuals and receipts to items or locations.
+- **Rapid repeat entry** — **Save and add another** copies an item, clears and focuses the SKU, and
+  keeps the form ready for the next barcode scan.
 - **Search and filters** — full-text search, category, tag, location (including descendants), low stock.
 - **Backup and restore** — download a consistent SQLite snapshot from the UI or API, and restore it with validation and automatic rollback on failure.
 - **Home Assistant MQTT discovery** — optional location devices with grouped item entities, stock levels, contents tables and low-stock triggers.
@@ -62,6 +64,14 @@ npm run seed
 ```
 
 The seed script is idempotent — running it again only adds anything that is missing.
+
+### Adding several similar items
+
+Open an item and choose **Add another**, or use **Save and add another** on the edit form. The new
+item form is prefilled with every field except the SKU, which is cleared and focused. Scan or type
+the next SKU and press Enter to save it and open another copy; repeat for the batch. **Cancel**
+leaves the loop and returns to the source item. The normal add form keeps **Save** as its default,
+so pressing Enter there behaves as usual.
 
 ## Scripts
 

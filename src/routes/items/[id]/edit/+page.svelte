@@ -29,5 +29,6 @@
   error={form?.error ?? ''}
   details={form?.details ?? []}
   submitLabel="Save changes"
+  addAnotherLabel="Save and add another"
   cancelHref={`/items/${data.item.id}`}
 />
