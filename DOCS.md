@@ -67,9 +67,9 @@ suitable for `/llms.txt`.
 
 ## Home Assistant MQTT discovery
 
-Locations and items can be published to Home Assistant as MQTT devices, so they
-appear alongside the rest of your smart-home entities and can be used in
-dashboards and automations.
+Locations can be published to Home Assistant as MQTT devices, with item
+entities grouped underneath them. They appear alongside the rest of your
+smart-home entities and can be used in dashboards and automations.
 
 ### Setup
 
@@ -100,8 +100,8 @@ the **Publish to Home Assistant** button on the detail page.
 - Turning off a location removes the location and its sublocations. Items you
   published individually stay visible, so vital low-stock items can still be
   monitored.
-- An item whose location is hidden attaches to the **Inventory** hub instead of
-  the location device.
+- An item whose location is hidden attaches to the nearest published location
+  device, or the **Inventory** hub if no location above it is published.
 - A child location stays hidden while any parent location is unpublished.
 - The hub totals, low-stock counts and Contents tables only include published
   items.
@@ -110,15 +110,21 @@ the **Publish to Home Assistant** button on the detail page.
 
 | Device | Entities | Details |
 | --- | --- | --- |
-| **Inventory** (hub) | **Items** sensor, **Low stock items** sensor, **Low stock alert** binary sensor | Totals across the published inventory. The alert sensor is `problem` when anything published is low. |
-| Each **location** | **Contents** sensor, **Low stock** binary sensor | The sensor state is the number of published items in the location *and its sublocations*. Its attributes contain the item list and a Markdown table. The binary sensor is `problem` when any published item below it is low. |
-| Each **item** | **Quantity** sensor, **Low stock** binary sensor | The quantity sensor uses the item's unit and includes SKU, category, location and threshold as attributes. The low-stock binary sensor is `problem` when `quantity <= min_quantity` and `min_quantity > 0`. |
+| **Inventory** (hub) | **Items** sensor, **Low stock items** sensor, **Low stock alert** binary sensor, plus item entities with no published location | Totals across the published inventory. The alert sensor is `problem` when anything published is low. |
+| Each **location** | **Contents** sensor, **Low stock** binary sensor, plus the **Quantity** and **Low stock** entities for published items grouped here | The sensor state is the number of published items in the location *and its sublocations*. Its attributes contain the item list and a Markdown table. The binary sensor is `problem` when any published item below it is low. |
 
-Locations and items are linked with MQTT `via_device`, so the device page shows
-which shelf or drawer an item belongs to. The top-level location name is used as
-`suggested_area`: Home Assistant suggests that area when it first creates a
-device. This gives you room association without any extra configuration, while
-still letting you move devices between areas manually.
+Item entities are grouped onto their nearest published **location** device
+rather than creating one device per item, so a room stays a single device.
+Each item's entities are named after the item (for example
+`Digital multimeter` and `Digital multimeter low stock`). The quantity sensor
+uses the item's unit and includes SKU, category, location and threshold as
+attributes. The low-stock binary sensor is `problem` when
+`quantity <= min_quantity` and `min_quantity > 0`.
+
+Location devices are linked with MQTT `via_device`. The top-level location name
+is used as `suggested_area`: Home Assistant suggests that area when it first
+creates a device. This gives you room association without any extra
+configuration, while still letting you move devices between areas manually.
 
 The **Contents** sensor attributes are:
 

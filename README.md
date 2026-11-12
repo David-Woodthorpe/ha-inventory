@@ -256,8 +256,9 @@ add-on page; the API is then at `http://<home-assistant-host>:3000/api/v1`. Set
 
 #### Home Assistant MQTT discovery
 
-Inventory can expose its locations and items as Home Assistant devices. Install
-the **Mosquitto broker** add-on and add the **MQTT** integration under
+Inventory can expose its locations as Home Assistant devices, with item
+entities grouped underneath them. Install the **Mosquitto broker** add-on and
+add the **MQTT** integration under
 **Settings → Devices & services** first. The Inventory add-on requests access to
 the Supervisor's MQTT service, so no broker address or credentials are needed.
 
@@ -266,8 +267,9 @@ publishing when you upgrade, but newly created items and locations start
 unpublished. Tick **Publish this item/location to Home Assistant** on the edit
 form, or use the button on the detail page, to add them. Turning off a location
 also removes its sublocations, but items you published individually stay
-visible under the **Inventory** hub, so vital low-stock items can still be
-monitored. The hub totals and low-stock alert only count published items.
+visible, grouped with the nearest published location or the **Inventory** hub,
+so vital low-stock items can still be monitored. The hub totals and low-stock
+alert only count published items.
 
 What appears in Home Assistant:
 
@@ -279,12 +281,15 @@ What appears in Home Assistant:
   `items` (a list of name, quantity, unit, SKU, location and low-stock flag),
   `contents` (a ready-made Markdown table) and `child_locations`. A **Low
   stock** binary sensor turns on when any item below it needs restocking.
-- One device per **item**, with a **Quantity** sensor and a **Low stock** binary
-  sensor (`device_class: problem`) that can trigger automations.
-- Devices are connected in a hierarchy with `via_device`, and the top-level
-  location name is used as `suggested_area`. Home Assistant suggests that room
-  when the device is first created; you can then move devices between areas
-  freely.
+- Each published **item** gets a **Quantity** sensor and a **Low stock** binary
+  sensor (`device_class: problem`) that can trigger automations. These entities
+  are grouped onto the item's nearest published **location** device instead of
+  creating a separate device per item, so each room stays a single device. Items
+  with no published location are grouped onto the **Inventory** hub.
+- Location devices are connected in a hierarchy with `via_device`, and the
+  top-level location name is used as `suggested_area`. Home Assistant suggests
+  that room when the device is first created; you can then move devices between
+  areas freely.
 
 Show a location's contents in a dashboard with a Markdown card:
 

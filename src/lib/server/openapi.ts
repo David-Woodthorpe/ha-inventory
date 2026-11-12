@@ -581,7 +581,7 @@ export const openapi = {
             type: 'boolean',
             default: false,
             description:
-              'Publish this item to Home Assistant via MQTT discovery. New items default to false. Published items stay visible even when their location is hidden.'
+              'Publish this item to Home Assistant via MQTT discovery. New items default to false. Published items stay visible even when their location is hidden and are grouped under the nearest published location device.'
           }
         }
       },

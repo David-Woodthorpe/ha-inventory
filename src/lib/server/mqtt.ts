@@ -17,10 +17,12 @@ import { getLocations } from './locations';
 /**
  * Home Assistant MQTT Discovery.
  *
- * The app publishes one device per location and per item. Each location device
- * exposes a "Contents" sensor whose attributes contain the item list and a
- * ready-to-use Markdown table, plus a low-stock binary sensor. Each item device
- * exposes a quantity sensor and a low-stock binary sensor.
+ * The app publishes one device per location, not one device per item. Each
+ * location device exposes a "Contents" sensor whose attributes contain the item
+ * list and a ready-to-use Markdown table, plus a low-stock binary sensor. Item
+ * quantity and low-stock entities are grouped onto their nearest published
+ * location device, so a room stays a single device instead of a long list of
+ * item devices. Items with no published location are grouped onto the hub.
  *
  * Devices are arranged in a hierarchy with via_device:
  *
@@ -28,7 +30,6 @@ import { getLocations } from './locations';
  *   ├── Office
  *   │   ├── Office / Bookcase
  *   │   └── Office / Drawer unit 1
- *   │       └── 100nF ceramic capacitor (item)
  *   └── Workshop
  *
  * Discovery and state messages are retained so Home Assistant recovers the
@@ -249,10 +250,6 @@ function locationIdentifier(id: string): string {
   return `inventory_location_${id}`;
 }
 
-function itemIdentifier(id: string): string {
-  return `inventory_item_${id}`;
-}
-
 function appUrl(): string | null {
   return /^https?:\/\//i.test(publicBaseUrl) ? publicBaseUrl : null;
 }
@@ -291,21 +288,25 @@ function locationDevice(
   return device;
 }
 
-function itemDevice(item: Item, locationsById: Map<string, Location>): Record<string, unknown> {
-  const location = item.location_id ? locationsById.get(item.location_id) : undefined;
-  const topLevel = location ? locationsById.get(location.path_ids[0]) ?? location : undefined;
-  const device: Record<string, unknown> = {
-    identifiers: [itemIdentifier(item.id)],
-    name: item.sku ? `${item.name} (${item.sku})` : item.name,
-    manufacturer: item.manufacturer || 'Inventory',
-    model: item.category || 'Item',
-    sw_version: appVersion,
-    via_device: location ? locationIdentifier(location.id) : 'inventory_app'
-  };
-  if (topLevel) device.suggested_area = topLevel.name;
-  const url = appUrl();
-  if (url) device.configuration_url = url;
-  return device;
+function itemLabel(item: Item): string {
+  return item.sku ? `${item.name} (${item.sku})` : item.name;
+}
+
+/**
+ * The device that item entities should be grouped under. Walk up the item's
+ * location path and use the closest location that is actually published, so an
+ * item in a hidden sublocation still appears on its published room device.
+ */
+function itemGroupingLocation(
+  item: Item,
+  locationsById: Map<string, Location>
+): Location | undefined {
+  if (!item.location) return undefined;
+  for (let index = item.location.path_ids.length - 1; index >= 0; index--) {
+    const location = locationsById.get(item.location.path_ids[index]);
+    if (location) return location;
+  }
+  return undefined;
 }
 
 function availability() {
@@ -525,11 +526,15 @@ function buildDiscovery(allLocations: Location[], allItems: Item[]) {
       })
     );
 
-    const device = itemDevice(item, locationsById);
+    const groupingLocation = itemGroupingLocation(item, locationsById);
+    const device = groupingLocation
+      ? locationDevice(groupingLocation, locationsById)
+      : hubDevice();
+    const label = itemLabel(item);
     const objectBase = `item_${item.id}`;
 
     addConfig(configs, 'sensor', `${objectBase}_quantity`, {
-      name: 'Quantity',
+      name: label,
       unique_id: `inventory_item_${item.id}_quantity`,
       state_topic: stateTopic,
       value_template: '{{ value_json.quantity }}',
@@ -541,7 +546,7 @@ function buildDiscovery(allLocations: Location[], allItems: Item[]) {
     });
 
     addConfig(configs, 'binary_sensor', `${objectBase}_low_stock`, {
-      name: 'Low stock',
+      name: `${label} low stock`,
       unique_id: `inventory_item_${item.id}_low_stock`,
       state_topic: stateTopic,
       value_template: "{{ 'ON' if value_json.low_stock else 'OFF' }}",

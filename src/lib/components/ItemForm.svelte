@@ -190,7 +190,8 @@
           </label>
           <span class="hint">
             New items are not published by default. Published items stay visible even when their
-            location is not published, so vital stock can still be monitored.
+            location is not published, so vital stock can still be monitored. Their entities are
+            grouped under the nearest published location, or the Inventory hub.
           </span>
         </div>
       </div>
