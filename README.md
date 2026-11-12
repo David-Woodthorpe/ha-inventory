@@ -29,7 +29,7 @@ Workshop
 - **Photos and documents** — upload images, datasheets, manuals and receipts to items or locations.
 - **Search and filters** — full-text search, category, tag, location (including descendants), low stock.
 - **Backup and restore** — download a consistent SQLite snapshot from the UI or API, and restore it with validation and automatic rollback on failure.
-- **Home Assistant MQTT discovery** — optional location and item devices with stock levels, contents tables and low-stock triggers.
+- **Home Assistant MQTT discovery** — optional location devices with grouped item entities, stock levels, contents tables and low-stock triggers.
 - **AI-ready REST API** — JSON envelope, UUIDs, pagination, OpenAPI schema and a dedicated `/llms.txt`
   guide written for language models.
 - **No build-time database** — one SQLite file plus an uploads directory. Back up by copying `data/`.
@@ -279,8 +279,9 @@ What appears in Home Assistant:
   `Workshop / Shelf A`). Its **Contents** sensor state is the number of
   published items in that location and all sublocations. Attributes include
   `items` (a list of name, quantity, unit, SKU, location and low-stock flag),
-  `contents` (a ready-made Markdown table) and `child_locations`. A **Low
-  stock** binary sensor turns on when any item below it needs restocking.
+  `contents` (a ready-made Markdown table), `child_locations` and a `low_stock`
+  count. Locations do not get a separate low-stock binary sensor; the per-item
+  **Low stock** entities and the hub alert remain available.
 - Each published **item** gets a **Quantity** sensor and a **Low stock** binary
   sensor (`device_class: problem`) that can trigger automations. These entities
   are grouped onto the item's nearest published **location** device instead of

@@ -493,18 +493,6 @@ function buildDiscovery(allLocations: Location[], allItems: Item[]) {
       ...availability(),
       device: locationDevice(location, locationsById)
     });
-
-    addConfig(configs, 'binary_sensor', `${objectBase}_low_stock`, {
-      name: 'Low stock',
-      unique_id: `inventory_location_${location.id}_low_stock`,
-      state_topic: stateTopic,
-      value_template: "{{ 'ON' if value_json.low_stock > 0 else 'OFF' }}",
-      json_attributes_topic: stateTopic,
-      device_class: 'problem',
-      icon: 'mdi:alert',
-      ...availability(),
-      device: locationDevice(location, locationsById)
-    });
   }
 
   // ---- Items ---------------------------------------------------------------

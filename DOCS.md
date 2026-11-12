@@ -111,14 +111,14 @@ the **Publish to Home Assistant** button on the detail page.
 | Device | Entities | Details |
 | --- | --- | --- |
 | **Inventory** (hub) | **Items** sensor, **Low stock items** sensor, **Low stock alert** binary sensor, plus item entities with no published location | Totals across the published inventory. The alert sensor is `problem` when anything published is low. |
-| Each **location** | **Contents** sensor, **Low stock** binary sensor, plus the **Quantity** and **Low stock** entities for published items grouped here | The sensor state is the number of published items in the location *and its sublocations*. Its attributes contain the item list and a Markdown table. The binary sensor is `problem` when any published item below it is low. |
+| Each **location** | **Contents** sensor, plus the **Quantity** and **Low stock** entities for published items grouped here | The sensor state is the number of published items in the location *and its sublocations*. Its attributes contain the item list, a Markdown table and a `low_stock` count. There is no separate location-level low-stock binary sensor. |
 
 Item entities are grouped onto their nearest published **location** device
 rather than creating one device per item, so a room stays a single device.
 Each item's entities are named after the item (for example
 `Digital multimeter` and `Digital multimeter low stock`). The quantity sensor
 uses the item's unit and includes SKU, category, location and threshold as
-attributes. The low-stock binary sensor is `problem` when
+attributes. Each item's low-stock binary sensor is `problem` when
 `quantity <= min_quantity` and `min_quantity > 0`.
 
 Location devices are linked with MQTT `via_device`. The top-level location name
