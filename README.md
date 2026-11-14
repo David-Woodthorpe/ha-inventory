@@ -607,6 +607,10 @@ Give the assistant the API base URL and the contents of `/llms.txt`. A useful pr
 The API is deliberately predictable: stable UUIDs, `{ "data": … }` envelopes, pagination metadata and
 validation errors that name the offending field.
 
+`/llms.txt` is maintained by hand, so it does not follow code changes automatically. If you add or
+change an endpoint, see [`AGENTS.md`](AGENTS.md) for the list of files that must be updated in the same
+commit — `/llms.txt`, the OpenAPI schema, the endpoint table in this README and `DOCS.md`.
+
 ## Project layout
 
 ```
@@ -634,6 +638,7 @@ compose.yaml                   Docker Compose service with a persistent volume
 docker-entrypoint.sh           Prepares /data and drops to the node user
 repository.yaml, config.yaml   Home Assistant add-on repository metadata
 DOCS.md                        Home Assistant add-on documentation
+AGENTS.md                      Doc-sync checklist for AI assistants
 data/                          SQLite database and uploads (gitignored)
 ```
 
