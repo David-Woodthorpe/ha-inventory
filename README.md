@@ -27,6 +27,11 @@ Workshop
 - **Stock movements** — every change is recorded with a reason and note; quick +/- buttons and manual
   adjustments. Quantities may be fractional (metres of wire, grams of paste).
 - **Photos and documents** — upload images, datasheets, manuals and receipts to items or locations.
+- **Service history** — optionally log maintenance per item with a date, notes, cost and receipt or
+  document uploads. Each record is kept as a dated history.
+- **Recurring service schedule** — set an interval in months and a next due date. Logging a service
+  advances the due date automatically, and a Home Assistant local calendar can hold the next due date
+  as an all-day event.
 - **Rapid repeat entry** — **Save and add another** copies an item, clears and focuses the SKU, and
   keeps the form ready for the next barcode scan.
 - **Search and filters** — full-text search, category, tag, location (including descendants), low stock.
@@ -107,6 +112,9 @@ the variables in your shell, service manager or container instead.
 | `MQTT_SSL` | `false` | Connect with TLS (`mqtts://`). |
 | `MQTT_DISCOVERY_PREFIX` | `homeassistant` | Home Assistant discovery prefix. |
 | `MQTT_TOPIC_PREFIX` | `inventory` | Prefix for the app's state and availability topics. |
+| `HA_CALENDAR_ENTITY` | *(unset)* | Home Assistant calendar entity ID, for example `calendar.inventory_service`. Setting it enables service due-date sync. |
+| `HA_URL` | *(unset)* | Home Assistant base URL for calendar sync in a Docker install, for example `http://homeassistant.local:8123`. Not needed by the add-on, which uses the Supervisor proxy. |
+| `HA_TOKEN` | *(unset)* | Long-lived Home Assistant access token for calendar sync. The add-on uses `SUPERVISOR_TOKEN` automatically. |
 
 `server.js` also sets adapter-node's `BODY_SIZE_LIMIT` from `MAX_UPLOAD_MB`, so
 uploads larger than adapter-node's 512 KB default work out of the box. Set
@@ -208,6 +216,10 @@ PUBLIC_BASE_URL=https://inventory.example.com
 MQTT_HOST=192.168.1.10
 MQTT_USERNAME=inventory
 MQTT_PASSWORD=replace-me
+# Optional Home Assistant service calendar
+HA_CALENDAR_ENTITY=calendar.inventory_service
+HA_URL=http://homeassistant.local:8123
+HA_TOKEN=replace-with-a-long-lived-token
 ```
 
 Useful commands:
@@ -258,6 +270,7 @@ Add-on options:
 | `enable_mqtt` | `true` | Publish locations and items to Home Assistant with MQTT discovery. Requires the Mosquitto broker add-on and the MQTT integration. |
 | `mqtt_discovery_prefix` | `homeassistant` | Discovery prefix. Change only if your Home Assistant MQTT integration uses a custom prefix. |
 | `mqtt_topic_prefix` | `inventory` | Prefix for the app's state and availability topics. |
+| `service_calendar_entity` | *(empty)* | Home Assistant calendar entity ID for service due dates, for example `calendar.inventory_service`. Leave empty to disable calendar sync. |
 
 Ingress needs no exposed port and Home Assistant handles authentication. For
 API clients that cannot use ingress, enable the optional `3000/tcp` port on the
@@ -324,6 +337,33 @@ the app publishes an MQTT last-will message that marks them unavailable when it
 stops. Deleting an item or location removes its retained discovery config.
 If you install or reconfigure the MQTT broker after starting the add-on, restart
 Inventory so it can read the new service details.
+
+#### Service history and calendar
+
+Service tracking is optional per item. On the item detail page, **Log service**
+records the date, notes, an optional cost and one or more receipt or document
+files. The **Service schedule** card shows the next due date, the interval and
+any standing service notes. Edit an item to set a service interval (for example
+every 12 months) and a next due date; logging a service moves the due date
+forward from the latest record by the interval, so a late service does not
+accumulate missed cycles. If no interval is set, the due date stays exactly as
+entered.
+
+To mirror due dates into Home Assistant:
+
+1. Create a **Local calendar** under **Settings → Devices & services → Add
+   integration**. Give it a name such as *Inventory service*.
+2. Copy its entity ID, for example `calendar.inventory_service`.
+3. In the add-on options, set `service_calendar_entity` to that ID and restart
+   Inventory.
+
+The add-on declares `homeassistant_api: true`, so it uses the Supervisor token
+and Core proxy without any extra credentials. For plain Docker, set
+`HA_CALENDAR_ENTITY`, `HA_URL` and `HA_TOKEN` (a long-lived access token)
+instead. The app creates one all-day event per scheduled item, updates it when
+the item or its due date changes, and removes it when the schedule is cleared or
+the item is deleted. Calendar failures are logged and never block an inventory
+change; the inventory remains fully usable without Home Assistant.
 
 Home Assistant snapshots stop the add-on first (`backup: cold`) so the SQLite
 database is copied consistently. See [DOCS.md](DOCS.md) for add-on-specific
@@ -442,13 +482,18 @@ empty `currencies` list, and `price`/`currency` fields on create or update reque
 | `DELETE` | `/items/{id}` | Delete an item, its movements and files. |
 | `POST` | `/items/{id}/stock` | Adjust stock with `{"delta": -2}` or `{"set": 10}`, plus optional `reason`/`note`. |
 | `GET` | `/items/{id}/movements` | Stock movement history. |
+| `GET` | `/items/{id}/service` | Service history, newest first. |
+| `POST` | `/items/{id}/service` | Log a service record with `performed_at`, optional `notes`, `cost` and `currency`. |
+| `GET` | `/items/{id}/service/{recordId}` | One service record with its attachments. |
+| `PATCH` | `/items/{id}/service/{recordId}` | Update a service record. |
+| `DELETE` | `/items/{id}/service/{recordId}` | Delete a service record and its files. |
 | `GET` | `/locations` | Flat list; add `?tree=true` for a nested tree. |
 | `POST` | `/locations` | Create a location, optionally with `parent_id`. |
 | `GET` | `/locations/{id}` | Location, children and breadcrumb. |
 | `PATCH` | `/locations/{id}` | Rename or move a location. |
 | `DELETE` | `/locations/{id}` | Delete only when empty (`409` otherwise). |
-| `GET` | `/attachments` | Filter with `item_id` or `location_id`. |
-| `POST` | `/attachments` | `multipart/form-data` upload. |
+| `GET` | `/attachments` | Filter with `item_id`, `location_id` or `service_record_id`. |
+| `POST` | `/attachments` | `multipart/form-data` upload; add `service_record_id` for a service receipt. |
 | `GET` | `/attachments/{id}` | Attachment metadata. |
 | `GET` | `/attachments/{id}/file` | View/download the file. |
 | `DELETE` | `/attachments/{id}` | Delete metadata and file. |
@@ -496,6 +541,16 @@ curl -X POST "$BASE/attachments" \
   -F 'item_id=<item-id>' \
   -F 'kind=document' \
   -F 'caption=Manufacturer datasheet'
+
+# Log a service and attach a receipt
+curl -X POST "$BASE/items/<item-id>/service" \
+  -H 'Content-Type: application/json' \
+  -d '{"performed_at":"2026-05-12","notes":"Replaced the probe tips","cost":12.5}'
+
+curl -X POST "$BASE/attachments" \
+  -F 'file=@receipt.pdf' \
+  -F 'service_record_id=<record-id>' \
+  -F 'kind=document'
 ```
 
 ### Using it with an AI assistant
@@ -517,8 +572,8 @@ src/
 ├── hooks.server.ts            API-key auth, security headers and MQTT startup
 ├── lib/
 │   ├── components/            Icon, forms, location picker, upload form
-│   ├── server/                SQLite, services, validation, OpenAPI spec
-│   └── types.ts               Shared item/location/attachment types
+│   ├── server/                SQLite, services, service history, calendar sync, OpenAPI spec
+│   └── types.ts               Shared item/location/attachment/service types
 └── routes/
     ├── +page.*                Dashboard
     ├── items/                 List, detail, create, edit

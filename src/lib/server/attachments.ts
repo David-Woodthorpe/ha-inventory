@@ -67,9 +67,27 @@ export async function createAttachment(formData: FormData): Promise<Attachment> 
 
   const rawItemId = formData.get('item_id');
   const rawLocationId = formData.get('location_id');
-  const itemId = typeof rawItemId === 'string' && rawItemId.trim() ? rawItemId.trim() : null;
+  const rawServiceRecordId = formData.get('service_record_id');
+  let itemId = typeof rawItemId === 'string' && rawItemId.trim() ? rawItemId.trim() : null;
   const locationId =
     typeof rawLocationId === 'string' && rawLocationId.trim() ? rawLocationId.trim() : null;
+  const serviceRecordId =
+    typeof rawServiceRecordId === 'string' && rawServiceRecordId.trim()
+      ? rawServiceRecordId.trim()
+      : null;
+
+  if (serviceRecordId) {
+    // Service receipts belong to an item through the service record. Derive the
+    // item so the attachment's existing item/location CHECK stays satisfied.
+    const record = db
+      .prepare('SELECT item_id FROM service_records WHERE id = ?')
+      .get(serviceRecordId) as unknown as { item_id: string } | undefined;
+    if (!record) throw notFound('Service record', serviceRecordId);
+    if (itemId && itemId !== record.item_id) {
+      throw badRequest('The service record does not belong to this item');
+    }
+    itemId = record.item_id;
+  }
 
   if (Boolean(itemId) === Boolean(locationId)) {
     throw badRequest('Provide exactly one of "item_id" or "location_id"');
@@ -108,9 +126,21 @@ export async function createAttachment(formData: FormData): Promise<Attachment> 
 
   db.prepare(
     `INSERT INTO attachments
-      (id, item_id, location_id, kind, filename, original_name, mime_type, size, caption, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, itemId, locationId, kind, filename, originalName, mimeType, file.size, caption, nowIso());
+      (id, item_id, location_id, service_record_id, kind, filename, original_name, mime_type, size, caption, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    itemId,
+    locationId,
+    serviceRecordId,
+    kind,
+    filename,
+    originalName,
+    mimeType,
+    file.size,
+    caption,
+    nowIso()
+  );
 
   const attachment = getAttachment(id);
   return attachment;
@@ -124,7 +154,11 @@ export function getAttachment(id: string): Attachment {
   return toAttachment(row);
 }
 
-export function listAttachments(filter: { item_id?: string; location_id?: string }): Attachment[] {
+export function listAttachments(filter: {
+  item_id?: string;
+  location_id?: string;
+  service_record_id?: string;
+}): Attachment[] {
   let sql = 'SELECT * FROM attachments WHERE 1 = 1';
   const args: string[] = [];
   if (filter.item_id) {
@@ -134,6 +168,10 @@ export function listAttachments(filter: { item_id?: string; location_id?: string
   if (filter.location_id) {
     sql += ' AND location_id = ?';
     args.push(filter.location_id);
+  }
+  if (filter.service_record_id) {
+    sql += ' AND service_record_id = ?';
+    args.push(filter.service_record_id);
   }
   sql += ' ORDER BY created_at ASC';
   const rows = db.prepare(sql).all(...args) as unknown as Array<Record<string, unknown>>;

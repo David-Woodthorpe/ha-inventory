@@ -54,6 +54,14 @@ async function api(path, options = {}) {
 
 const log = (symbol, message) => console.log(`  ${symbol} ${message}`);
 
+function isoDateMonthsFromNow(months) {
+  const date = new Date();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  date.setUTCDate(Math.min(new Date().getUTCDate(), 28));
+  return date.toISOString().slice(0, 10);
+}
+
 // ── Locations ────────────────────────────────────────────────────────────────
 
 const locationSpec = [
@@ -365,7 +373,10 @@ const itemSpec = [
     mpn: 'UT61E+',
     supplier: 'AliExpress',
     price: 62.0,
-    tags: ['test-equipment', 'true-rms']
+    tags: ['test-equipment', 'true-rms'],
+    service_interval_months: 12,
+    service_next_due: isoDateMonthsFromNow(8),
+    service_notes: 'Check the fuses and calibrate against the bench reference.'
   },
   {
     name: 'Thermal paste',
@@ -541,6 +552,28 @@ async function ensureAttachments(items) {
   return created;
 }
 
+// ── Service history ──────────────────────────────────────────────────────────
+
+async function ensureServiceRecords(items) {
+  const item = items.get('TOOL-DMM');
+  if (!item) return 0;
+
+  const { data: existing } = await api(`/items/${item.id}/service`);
+  if (existing.length > 0) return 0;
+
+  await api(`/items/${item.id}/service`, {
+    method: 'POST',
+    body: JSON.stringify({
+      performed_at: isoDateMonthsFromNow(-4),
+      notes: 'Checked the fuses and replaced the probe tips.',
+      cost: 12.5,
+      currency
+    })
+  });
+  log('+', `service record for ${item.name}`);
+  return 1;
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -562,11 +595,15 @@ async function main() {
   const createdItems = await ensureItems(locations);
   const items = await loadItems();
   const createdAttachments = await ensureAttachments(items);
+  const createdServiceRecords = await ensureServiceRecords(items);
   const { data: stats } = await api('/meta');
 
   console.log('\nDone.');
   log('·', `${requests} API requests`);
-  log('·', `${createdItems} new items, ${createdAttachments} new attachments`);
+  log(
+    '·',
+    `${createdItems} new items, ${createdAttachments} new attachments, ${createdServiceRecords} new service records`
+  );
   log(
     '·',
     `${stats.stats.item_count} items across ${stats.stats.location_count} locations (${stats.stats.low_stock_count} low on stock)`

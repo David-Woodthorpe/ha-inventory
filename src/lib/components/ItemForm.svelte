@@ -235,6 +235,59 @@
 
   <div class="card">
     <div class="card-head">
+      <h2>Service schedule</h2>
+      <span class="hint">Optional</span>
+    </div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="field">
+          <label class="label" for="service_interval_months">Service interval (months)</label>
+          <input
+            id="service_interval_months"
+            class="input"
+            type="number"
+            name="service_interval_months"
+            value={values.service_interval_months}
+            min="1"
+            max="120"
+            step="1"
+            placeholder="e.g. 12"
+          />
+          <span class="hint">Leave blank to disable the schedule.</span>
+        </div>
+
+        <div class="field">
+          <label class="label" for="service_next_due">Next service due</label>
+          <input
+            id="service_next_due"
+            class="input"
+            type="date"
+            name="service_next_due"
+            value={values.service_next_due}
+          />
+          <span class="hint">Logging a service advances this date by the interval.</span>
+        </div>
+
+        <div class="field full">
+          <label class="label" for="service_notes">Service notes</label>
+          <textarea
+            id="service_notes"
+            class="textarea"
+            name="service_notes"
+            rows="3"
+            placeholder="Maintenance instructions, lubricants, replacement parts…"
+          >{values.service_notes}</textarea>
+          <span class="hint">
+            When a Home Assistant calendar is configured, the next due date is added as an all-day
+            event and moved forward automatically after each service.
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
       <h2>Sourcing</h2>
       <span class="hint">{pricingEnabled ? 'Where it came from and what it cost' : 'Where it came from'}</span>
     </div>

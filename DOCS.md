@@ -35,6 +35,7 @@ seed script is idempotent, so it is safe to run again.
 | `enable_mqtt` | `true` | Publish locations and items to Home Assistant with MQTT discovery. |
 | `mqtt_discovery_prefix` | `homeassistant` | Home Assistant discovery prefix. |
 | `mqtt_topic_prefix` | `inventory` | Prefix for the app's state and availability topics. |
+| `service_calendar_entity` | *(empty)* | Home Assistant calendar entity ID for service due dates, for example `calendar.inventory_service`. Leave empty to disable calendar sync. |
 
 Changing an option restarts the add-on.
 
@@ -187,6 +188,40 @@ Entity IDs come from the device and entity names. Search for `contents`,
 - If you change the broker or install MQTT after Inventory has started, restart
   the add-on so it can read the new service details.
 
+## Service history and calendar
+
+Service tracking is optional for every item. Set a **service interval** in
+months and a **next service due** date on the item form, then use **Log
+service** on the item detail page to record the date, notes, an optional cost
+and any number of receipt or document uploads. Each record is kept as dated
+history.
+
+When an interval is set, logging a service advances the next due date from the
+latest record date plus the interval. For example, a 12-month interval with a
+service on 12 May 2026 makes the next due date 12 May 2027. This measures from
+when the work actually happened, so a late service does not accumulate missed
+cycles. Without an interval, the due date stays exactly as entered. The item
+list and detail page mark a schedule as due when the date is today or earlier.
+
+To add due dates to a Home Assistant calendar:
+
+1. Go to **Settings → Devices & services → Add integration** and add **Local
+   calendar**. Give it a name such as *Inventory service*.
+2. Copy the calendar's entity ID, for example `calendar.inventory_service`.
+3. Set the add-on option `service_calendar_entity` to that ID and restart
+   Inventory.
+
+The add-on declares `homeassistant_api: true`, so it reaches Core through the
+Supervisor proxy using `SUPERVISOR_TOKEN`; no token needs to be copied. Each
+scheduled item gets one all-day event. The event is updated when the item, its
+notes or its due date changes, and removed when the schedule is cleared or the
+item is deleted. Calendar errors are written to the add-on log and never block
+an inventory change.
+
+For plain Docker, set `HA_CALENDAR_ENTITY`, `HA_URL` and `HA_TOKEN` (a
+long-lived access token) instead. The app talks to the Home Assistant REST and
+WebSocket APIs directly.
+
 ## Data, backups and restore
 
 Everything persistent lives in `/data`:
@@ -220,8 +255,8 @@ Restore validates the file with SQLite integrity, schema-version and foreign-key
 checks, and keeps the previous database if the new one cannot be opened.
 Backups from a newer add-on version are rejected.
 
-Database backups contain items, locations, attachment metadata and stock
-history. Uploaded files are **not** included, so also copy `/data/uploads` if
+Database backups contain items, locations, attachment metadata, stock history
+and service records. Uploaded files are **not** included, so also copy `/data/uploads` if
 you need them. The JSON export endpoint (`/api/v1/export`) is a separate
 human-readable export and does not include binary files either.
 

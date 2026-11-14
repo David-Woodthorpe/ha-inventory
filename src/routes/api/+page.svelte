@@ -40,6 +40,17 @@
       ]
     },
     {
+      title: 'Service',
+      icon: 'calendar',
+      endpoints: [
+        { method: 'GET', path: '/items/{id}/service', desc: 'Service history' },
+        { method: 'POST', path: '/items/{id}/service', desc: 'Log a service record' },
+        { method: 'GET', path: '/items/{id}/service/{recordId}', desc: 'One service record' },
+        { method: 'PATCH', path: '/items/{id}/service/{recordId}', desc: 'Update a record' },
+        { method: 'DELETE', path: '/items/{id}/service/{recordId}', desc: 'Delete record and files' }
+      ]
+    },
+    {
       title: 'Locations',
       icon: 'pin',
       endpoints: [
@@ -54,7 +65,7 @@
       title: 'Attachments',
       icon: 'file',
       endpoints: [
-        { method: 'GET', path: '/attachments', desc: 'Filter by item or location' },
+        { method: 'GET', path: '/attachments', desc: 'Filter by item, location or service record' },
         { method: 'POST', path: '/attachments', desc: 'Multipart upload' },
         { method: 'GET', path: '/attachments/{id}', desc: 'File metadata' },
         { method: 'GET', path: '/attachments/{id}/file', desc: 'Download or view file' },
@@ -88,7 +99,12 @@ curl -X POST ${base}/items/<item-id>/stock \\
 
 # 5. Upload a datasheet
 curl -X POST ${base}/attachments \\
-  ${authHeader}-F 'file=@datasheet.pdf' -F 'item_id=<item-id>' -F 'kind=document'`);
+  ${authHeader}-F 'file=@datasheet.pdf' -F 'item_id=<item-id>' -F 'kind=document'
+
+# 6. Log a service
+curl -X POST ${base}/items/<item-id>/service \\
+  ${authHeader}-H 'Content-Type: application/json' \\
+  -d '{"performed_at":"2026-05-12","notes":"Replaced the probe tips","cost":12.5}'`);
 
   const itemShape = $derived(`{
   "name": "10kΩ resistor 0.25W",   // required
@@ -106,7 +122,10 @@ ${data.pricingEnabled ? `  "price": 0.02,\n  "currency": "${data.currency}",\n` 
   "notes": "Bought in 2025",
   "tags": ["through-hole", "10k"],
   "custom_fields": { "tolerance": "5%", "power": "0.25W" },
-  "archived": false
+  "archived": false,
+  "service_interval_months": 12,     // optional
+  "service_next_due": "2026-05-12",  // optional, YYYY-MM-DD
+  "service_notes": "Replace the battery"
 }`);
 
   const responseShape = `// success

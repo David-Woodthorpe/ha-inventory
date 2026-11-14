@@ -1,8 +1,15 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { createAttachment, deleteAttachment, getAttachment } from '$lib/server/attachments';
+import { serviceCalendarEnabled, serviceCalendarEntity } from '$lib/server/config';
 import { ApiError } from '$lib/server/errors';
 import { adjustStock, deleteItem, getItem, updateItem } from '$lib/server/items';
 import { getLocations } from '$lib/server/locations';
+import { todayDate } from '$lib/server/serialize';
+import {
+  createServiceRecord,
+  deleteServiceRecord,
+  updateServiceRecord
+} from '$lib/server/service';
 
 export function load({ params }: { params: { id: string } }) {
   const item = getItem(params.id);
@@ -16,7 +23,10 @@ export function load({ params }: { params: { id: string } }) {
     : null;
   return {
     item,
-    locationPublished
+    locationPublished,
+    serviceCalendarEnabled,
+    serviceCalendarEntity,
+    today: todayDate()
   };
 }
 
@@ -67,6 +77,65 @@ export const actions = {
       }
       await deleteAttachment(id);
       return { success: 'Attachment deleted' };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  addService: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    try {
+      const record = createServiceRecord(params.id, {
+        performed_at: form.get('performed_at'),
+        notes: form.get('notes'),
+        cost: form.get('cost'),
+        currency: form.get('currency')
+      });
+
+      const files = form
+        .getAll('files')
+        .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+      for (const file of files) {
+        const upload = new FormData();
+        upload.set('file', file);
+        upload.set('item_id', params.id);
+        upload.set('service_record_id', record.id);
+        upload.set('kind', file.type.startsWith('image/') ? 'photo' : 'document');
+        upload.set('caption', file.name);
+        await createAttachment(upload);
+      }
+
+      return {
+        success:
+          files.length > 0
+            ? `Service logged with ${files.length} file${files.length === 1 ? '' : 's'}`
+            : 'Service logged'
+      };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  updateService: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    try {
+      updateServiceRecord(params.id, String(form.get('record_id') ?? ''), {
+        performed_at: form.get('performed_at'),
+        notes: form.get('notes'),
+        cost: form.get('cost'),
+        currency: form.get('currency')
+      });
+      return { success: 'Service record updated' };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  deleteService: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    try {
+      deleteServiceRecord(params.id, String(form.get('record_id') ?? ''));
+      return { success: 'Service record deleted' };
     } catch (error) {
       return actionFailure(error);
     }

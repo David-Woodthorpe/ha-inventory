@@ -33,6 +33,9 @@ export interface ItemFormValues {
   tags: string;
   archived: boolean;
   ha_enabled: boolean;
+  service_interval_months: string;
+  service_next_due: string;
+  service_notes: string;
   custom_fields: CustomFieldValue[];
 }
 

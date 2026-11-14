@@ -70,4 +70,21 @@ export const mqttTopicPrefix = topicPrefix(
   'inventory'
 );
 
-export const appVersion = '1.2.0';
+/**
+ * Optional Home Assistant local calendar for service due dates. Setting an
+ * entity ID enables the feature; leaving it empty keeps the app fully offline.
+ * The add-on talks to Core through the Supervisor proxy, while Docker installs
+ * provide HA_URL and HA_TOKEN directly.
+ */
+export const serviceCalendarEntity = (
+  env.HA_CALENDAR_ENTITY ||
+  env.SERVICE_CALENDAR_ENTITY ||
+  optionText('service_calendar_entity')
+).trim();
+export const homeAssistantUrl = (env.HA_URL || '').replace(/\/+$/, '');
+export const homeAssistantToken = env.HA_TOKEN || process.env.SUPERVISOR_TOKEN || '';
+export const serviceCalendarEnabled = Boolean(
+  serviceCalendarEntity && homeAssistantToken && (process.env.SUPERVISOR_TOKEN || homeAssistantUrl)
+);
+
+export const appVersion = '1.3.0';

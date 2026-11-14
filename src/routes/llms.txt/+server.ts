@@ -32,6 +32,7 @@ ${auth}
 - Create items with POST /items and a JSON body. Only "name" is required.
 - Adjust stock with POST /items/{id}/stock using {"delta": 1} or {"set": 10}; do not PATCH quantity for routine stock changes.
 - Upload photos/manuals with POST /attachments as multipart/form-data (file, item_id or location_id, kind=photo|document, caption).
+- Log maintenance with POST /items/{id}/service. Each service record has a date and optional notes, cost and receipt uploads. Service schedules are optional per item.
 - Locations are a tree. Create nested locations by passing parent_id. GET /locations?tree=true returns the tree.
 - Responses are {"data": ...} on success and {"error": {"code","message","details"}} on failure. HTTP status codes are meaningful.
 - List endpoints are paginated with limit/offset and return pagination.total + pagination.has_more.
@@ -47,13 +48,18 @@ PATCH  /items/{id}                      (partial update)
 DELETE /items/{id}
 POST   /items/{id}/stock                ({"delta": -2, "reason": "used"})
 GET    /items/{id}/movements
+GET    /items/{id}/service              (service history, newest first)
+POST   /items/{id}/service              ({"performed_at":"2026-05-12","notes":"..."})
+GET    /items/{id}/service/{recordId}
+PATCH  /items/{id}/service/{recordId}
+DELETE /items/{id}/service/{recordId}
 GET    /locations?tree=true
 POST   /locations                       ({"name":"Drawer 1a","parent_id":"..."})
 GET    /locations/{id}
 PATCH  /locations/{id}
 DELETE /locations/{id}
-GET    /attachments?item_id={id}
-POST   /attachments                     (multipart/form-data)
+GET    /attachments?item_id={id}&service_record_id={id}
+POST   /attachments                     (multipart/form-data; add service_record_id for a service receipt)
 GET    /attachments/{id}
 DELETE /attachments/{id}
 GET    /attachments/{id}/file
@@ -81,7 +87,10 @@ ${pricingFields}  "datasheet_url": "https://...",
   "tags": ["through-hole", "10k"],
   "custom_fields": {"tolerance": "5%", "power": "0.25W"},
   "archived": false,
-  "ha_enabled": false
+  "ha_enabled": false,
+  "service_interval_months": 12,          // optional; every 12 months
+  "service_next_due": "2026-05-12",       // optional; YYYY-MM-DD
+  "service_notes": "Replace the battery"  // optional
 }
 
 ## Examples
@@ -105,6 +114,13 @@ Upload a manual:
 curl -X POST ${base}/attachments \\
   -F 'file=@manual.pdf' -F 'item_id=<id>' -F 'kind=document'
 
+Log a service and attach a receipt:
+curl -X POST ${base}/items/<id>/service \\
+  -H 'Content-Type: application/json' \\
+  -d '{"performed_at":"2026-05-12","notes":"Replaced the probe tips","cost":12.5}'
+curl -X POST ${base}/attachments \\
+  -F 'file=@receipt.pdf' -F 'service_record_id=<record-id>' -F 'kind=document'
+
 Download and restore a database backup:
 curl ${base}/backup -o inventory-backup.db
 curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
@@ -112,6 +128,8 @@ curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
 ## Notes
 - Quantities are numbers and may be fractional (e.g. 2.5 metres of wire).
 - low_stock is true when min_quantity > 0 and quantity <= min_quantity.
+- service_due is true when service_next_due is today or in the past. Logging a service on an item with service_interval_months advances service_next_due from the latest record date.
+- When the instance has a Home Assistant calendar configured, the next due date is kept as an all-day calendar event automatically. No extra API call is needed.
 - ha_enabled controls whether an item or location is published to Home Assistant with MQTT discovery. New items and locations default to false. Turning off a location hides it and its sublocations, but items published individually stay visible and are grouped with the nearest published location (or the Inventory hub).
 ${pricingNote}
 - Deleting a location fails with 409 unless it is empty (no children, items or attachments).

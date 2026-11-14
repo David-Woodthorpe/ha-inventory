@@ -1,5 +1,5 @@
 name: Inventory
-version: "1.2.0"
+version: "1.3.0"
 slug: inventory
 description: Self-hosted inventory for electronics parts, tools and workshop supplies.
 arch:
@@ -33,6 +33,10 @@ watchdog: http://[HOST]:[PORT:3000]/api/v1/health
 # Stop the app while Home Assistant snapshots /data so SQLite is copied safely.
 backup: cold
 
+# Allow the add-on to reach the Home Assistant Core API and WebSocket through
+# the Supervisor proxy. Used only when a service calendar entity is configured.
+homeassistant_api: true
+
 # Ask the Supervisor for the MQTT broker configured in Home Assistant. With
 # `want` the add-on still starts when MQTT is not installed; discovery simply
 # stays off. Add it under Settings -> Devices & services -> MQTT.
@@ -52,6 +56,7 @@ options:
   enable_mqtt: true
   mqtt_discovery_prefix: homeassistant
   mqtt_topic_prefix: inventory
+  service_calendar_entity: ""
 schema:
   api_key: password
   default_currency: str(3,3)
@@ -61,3 +66,4 @@ schema:
   enable_mqtt: bool
   mqtt_discovery_prefix: str
   mqtt_topic_prefix: str
+  service_calendar_entity: str?

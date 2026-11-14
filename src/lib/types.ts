@@ -29,9 +29,11 @@ export interface LocationNode extends Location {
   children: LocationNode[];
 }
 
-export interface Attachment {  id: string;
+export interface Attachment {
+  id: string;
   item_id: string | null;
   location_id: string | null;
+  service_record_id: string | null;
   kind: 'photo' | 'document';
   original_name: string;
   mime_type: string;
@@ -39,6 +41,18 @@ export interface Attachment {  id: string;
   caption: string | null;
   url: string;
   created_at: string;
+}
+
+export interface ServiceRecord {
+  id: string;
+  item_id: string;
+  performed_at: string;
+  notes: string | null;
+  cost: number | null;
+  currency: string | null;
+  attachments: Attachment[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface StockMovement {
@@ -75,6 +89,10 @@ export interface Item {
   ha_enabled: boolean;
   low_stock: boolean;
   total_value: number | null;
+  service_interval_months: number | null;
+  service_next_due: string | null;
+  service_notes: string | null;
+  service_due: boolean;
   photo: Attachment | null;
   attachment_count: number;
   photos: Attachment[];
@@ -85,6 +103,7 @@ export interface Item {
 
 export interface ItemDetail extends Item {
   movements: StockMovement[];
+  service_records: ServiceRecord[];
 }
 
 export interface ItemListResult {

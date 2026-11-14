@@ -27,6 +27,28 @@ const optionalBoolean = z
 
 const optionalId = z.preprocess(emptyToNull, z.string().trim().max(100).nullable()).optional();
 
+function normalizeDateString(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  // Accept a full ISO timestamp and keep the date part.
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed);
+  return match ? match[1] : trimmed;
+}
+
+function isDateOnly(value: string): boolean {
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
+  .refine(isDateOnly, 'Use a valid calendar date');
+
+const optionalDate = z.preprocess(normalizeDateString, dateOnly.nullable()).optional();
+const requiredDate = z.preprocess(normalizeDateString, dateOnly);
+
 export const itemFields = {
   name: z.string().trim().min(1, 'Name is required').max(200),
   sku: optionalText(120),
@@ -50,7 +72,13 @@ export const itemFields = {
   tags: z.array(z.string().trim().min(1).max(60)).max(100).optional(),
   custom_fields: z.record(z.string(), z.unknown()).optional(),
   archived: optionalBoolean,
-  ha_enabled: optionalBoolean
+  ha_enabled: optionalBoolean,
+  service_interval_months: z.preprocess(
+    emptyToNull,
+    z.coerce.number().int().min(1, 'Use at least 1 month').max(120).nullable()
+  ).optional(),
+  service_next_due: optionalDate,
+  service_notes: optionalText(20000)
 };
 
 export const itemCreateSchema = z.object(itemFields);
@@ -72,6 +100,32 @@ export const stockAdjustSchema = z
   .refine((value) => (value.delta === undefined) !== (value.set === undefined), {
     message: 'Provide exactly one of "delta" or "set"'
   });
+
+const serviceRecordFields = {
+  performed_at: requiredDate,
+  notes: optionalText(20000),
+  cost: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.coerce.number().min(0).nullable()
+  ).optional(),
+  currency: z.preprocess(
+    emptyToNull,
+    z.string().trim().length(3).transform((v) => v.toUpperCase()).nullable()
+  ).optional()
+};
+
+export const serviceRecordCreateSchema = z.object(serviceRecordFields);
+
+export const serviceRecordUpdateSchema = z
+  .object({
+    ...serviceRecordFields,
+    performed_at: requiredDate.optional()
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'Provide at least one field to update'
+  });
+
+export type ServiceRecordInput = z.infer<typeof serviceRecordCreateSchema>;
 
 export const locationCreateSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),

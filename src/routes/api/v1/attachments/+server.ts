@@ -4,7 +4,10 @@ import { dataResponse, wrapApi } from '$lib/server/http';
 export const GET = wrapApi(({ url }) => {
   const itemId = url.searchParams.get('item_id') ?? undefined;
   const locationId = url.searchParams.get('location_id') ?? undefined;
-  return dataResponse(listAttachments({ item_id: itemId, location_id: locationId }));
+  const serviceRecordId = url.searchParams.get('service_record_id') ?? undefined;
+  return dataResponse(
+    listAttachments({ item_id: itemId, location_id: locationId, service_record_id: serviceRecordId })
+  );
 });
 
 export const POST = wrapApi(async ({ request }) => {

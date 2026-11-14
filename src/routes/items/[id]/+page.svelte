@@ -35,6 +35,12 @@
   function confirmDeleteAttachment(event: SubmitEvent) {
     if (!confirm('Delete this attachment?')) event.preventDefault();
   }
+
+  function confirmDeleteService(event: SubmitEvent) {
+    if (!confirm('Delete this service record and its files? This cannot be undone.')) {
+      event.preventDefault();
+    }
+  }
 </script>
 
 <svelte:head>
@@ -178,6 +184,267 @@
         </div>
       </div>
     {/if}
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Service schedule</h2>
+        {#if item.service_due}
+          <span class="badge badge-low"><Icon name="alert" size={11} /> Due</span>
+        {:else if item.service_next_due}
+          <span class="badge badge-outline">Scheduled</span>
+        {:else}
+          <span class="hint">Optional</span>
+        {/if}
+      </div>
+      <div class="card-body">
+        {#if item.service_interval_months || item.service_next_due}
+          <dl class="kv">
+            <dt>Next due</dt>
+            <dd>
+              {#if item.service_next_due}
+                <strong class:service-overdue={item.service_due}>{formatDate(item.service_next_due)}</strong>
+                {#if item.service_due}<span class="small muted">· service is due</span>{/if}
+              {:else}
+                <span class="faint">Not scheduled</span>
+              {/if}
+            </dd>
+            {#if item.service_interval_months}
+              <dt>Interval</dt>
+              <dd>Every {plural(item.service_interval_months, 'month')}</dd>
+            {/if}
+            {#if item.service_notes}
+              <dt>Notes</dt>
+              <dd style="white-space: pre-wrap;">{item.service_notes}</dd>
+            {/if}
+            {#if data.serviceCalendarEnabled}
+              <dt>Calendar</dt>
+              <dd class="mono small">{data.serviceCalendarEntity}</dd>
+            {/if}
+          </dl>
+        {:else}
+          <p class="small muted">
+            No service schedule yet. Set an interval and next due date when editing the item, then
+            log each service to advance it automatically.
+          </p>
+        {/if}
+      </div>
+      <div class="card-foot">
+        <a class="btn btn-sm" href={h(`/items/${item.id}/edit`)}>
+          <Icon name="edit" size={14} />
+          Edit schedule
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Service history</h2>
+        <span class="hint">{plural(item.service_records.length, 'record')}</span>
+      </div>
+      <div class="card-body">
+        {#if item.service_records.length}
+          <div class="stack-sm">
+            {#each item.service_records as record (record.id)}
+              <div class="service-record">
+                <div class="row-between">
+                  <div>
+                    <strong class="small">{formatDate(record.performed_at)}</strong>
+                    {#if record.cost !== null}
+                      <span class="muted small">
+                        · {formatMoney(record.cost, record.currency ?? item.currency)}
+                      </span>
+                    {/if}
+                  </div>
+                  <div class="row">
+                    <details class="service-details">
+                      <summary class="btn btn-ghost btn-sm">Edit</summary>
+                      <form method="POST" action="?/updateService" class="stack-sm service-edit-form">
+                        <input type="hidden" name="record_id" value={record.id} />
+                        <div class="form-grid" style="gap: 8px;">
+                          <div class="field">
+                            <label class="label" for={`service-date-${record.id}`}>Date</label>
+                            <input
+                              id={`service-date-${record.id}`}
+                              class="input"
+                              type="date"
+                              name="performed_at"
+                              value={record.performed_at}
+                              required
+                            />
+                          </div>
+                          {#if data.pricingEnabled}
+                            <div class="field">
+                              <label class="label" for={`service-cost-${record.id}`}>Cost</label>
+                              <input
+                                id={`service-cost-${record.id}`}
+                                class="input"
+                                type="number"
+                                name="cost"
+                                min="0"
+                                step="any"
+                                value={record.cost ?? ''}
+                              />
+                            </div>
+                          {/if}
+                        </div>
+                        <textarea class="textarea" name="notes" rows="3" placeholder="What was done?">{record.notes ?? ''}</textarea>
+                        {#if data.pricingEnabled}
+                          <input
+                            class="input mono"
+                            name="currency"
+                            value={record.currency ?? item.currency}
+                            maxlength="3"
+                            placeholder="Currency"
+                            aria-label="Currency"
+                          />
+                        {/if}
+                        <button class="btn btn-sm btn-primary" type="submit">
+                          <Icon name="check" size={14} />
+                          Save changes
+                        </button>
+                      </form>
+                    </details>
+                    <form method="POST" action="?/deleteService" onsubmit={confirmDeleteService}>
+                      <input type="hidden" name="record_id" value={record.id} />
+                      <button class="icon-btn danger" type="submit" aria-label="Delete service record">
+                        <Icon name="trash" size={14} />
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                {#if record.notes}
+                  <p class="small service-record-notes">{record.notes}</p>
+                {/if}
+
+                {#if record.attachments.length}
+                  <div class="attachment-list" style="margin-top: 8px;">
+                    {#each record.attachments as attachment (attachment.id)}
+                      <div class="attachment">
+                        <span class="attachment-icon"><Icon name="file" size={16} /></span>
+                        <div style="min-width: 0; flex: 1;">
+                          <a
+                            class="attachment-name"
+                            href={h(attachment.url)}
+                            download={attachment.original_name}
+                            title={attachment.original_name}
+                          >
+                            {attachment.caption ?? attachment.original_name}
+                          </a>
+                          <div class="attachment-meta">
+                            {formatBytes(attachment.size)} · {formatDate(attachment.created_at)}
+                          </div>
+                        </div>
+                        <form method="POST" action="?/deleteAttachment" onsubmit={confirmDeleteAttachment}>
+                          <input type="hidden" name="id" value={attachment.id} />
+                          <button class="icon-btn danger" type="submit" aria-label="Delete attachment">
+                            <Icon name="trash" size={14} />
+                          </button>
+                        </form>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+
+                <details class="service-details">
+                  <summary class="btn btn-ghost btn-sm service-upload-toggle">
+                    <Icon name="plus" size={13} />
+                    Add receipt or document
+                  </summary>
+                  <form
+                    method="POST"
+                    action="?/upload"
+                    enctype="multipart/form-data"
+                    class="stack-sm service-edit-form"
+                  >
+                    <input type="hidden" name="item_id" value={item.id} />
+                    <input type="hidden" name="service_record_id" value={record.id} />
+                    <input type="hidden" name="kind" value="document" />
+                    <input type="file" name="file" required />
+                    <input class="input" name="caption" placeholder="Caption (optional)" />
+                    <button class="btn btn-sm" type="submit">
+                      <Icon name="upload" size={14} />
+                      Upload
+                    </button>
+                  </form>
+                </details>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="small muted" style="margin-bottom: 12px;">
+            Log a service to keep a dated record of maintenance, repairs and receipts.
+          </p>
+        {/if}
+      </div>
+      <div class="card-foot">
+        <details class="service-details" open={item.service_records.length === 0}>
+          <summary class="btn btn-sm btn-primary">
+            <Icon name="plus" size={14} />
+            Log service
+          </summary>
+          <form
+            method="POST"
+            action="?/addService"
+            enctype="multipart/form-data"
+            class="stack-sm service-edit-form"
+          >
+            <div class="form-grid" style="gap: 10px;">
+              <div class="field">
+                <label class="label" for="service-performed">Date</label>
+                <input
+                  id="service-performed"
+                  class="input"
+                  type="date"
+                  name="performed_at"
+                  value={data.today}
+                  required
+                />
+              </div>
+              {#if data.pricingEnabled}
+                <div class="field">
+                  <label class="label" for="service-cost">Cost</label>
+                  <input
+                    id="service-cost"
+                    class="input"
+                    type="number"
+                    name="cost"
+                    min="0"
+                    step="any"
+                    placeholder="Optional"
+                  />
+                </div>
+                <div class="field">
+                  <label class="label" for="service-currency">Currency</label>
+                  <input
+                    id="service-currency"
+                    class="input mono"
+                    name="currency"
+                    value={item.currency}
+                    maxlength="3"
+                  />
+                </div>
+              {/if}
+            </div>
+            <textarea
+              class="textarea"
+              name="notes"
+              rows="3"
+              placeholder="What was done? Parts replaced, measurements, next steps…"
+            ></textarea>
+            <div class="field">
+              <label class="label" for="service-files">Receipts or documents</label>
+              <input id="service-files" type="file" name="files" multiple />
+              <span class="hint">Attach one or more files (photos, PDFs, receipts).</span>
+            </div>
+            <button class="btn btn-primary" type="submit">
+              <Icon name="check" size={15} />
+              Save service record
+            </button>
+          </form>
+        </details>
+      </div>
+    </div>
 
     <div class="card">
       <div class="card-head">
@@ -471,3 +738,47 @@
     </div>
   </div>
 </div>
+
+<style>
+  .service-record {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+  }
+
+  .service-record-notes {
+    white-space: pre-wrap;
+    margin-top: 8px;
+    color: var(--text-soft);
+  }
+
+  .service-details > summary {
+    list-style: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    width: fit-content;
+  }
+
+  .service-details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .service-edit-form {
+    margin-top: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    min-width: min(340px, 80vw);
+  }
+
+  .service-upload-toggle {
+    margin-top: 8px;
+  }
+
+  .service-overdue {
+    color: var(--danger);
+  }
+</style>

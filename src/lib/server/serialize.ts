@@ -1,4 +1,4 @@
-import type { Attachment, Item, Location, StockMovement } from '$lib/types';
+import type { Attachment, Item, Location, ServiceRecord, StockMovement } from '$lib/types';
 import { pricingEnabled } from './config';
 
 export type LocationRef = Pick<Location, 'id' | 'name' | 'path' | 'path_ids' | 'path_label'>;
@@ -25,6 +25,9 @@ export interface ItemRow {
   custom_fields: string;
   archived: number;
   ha_enabled: number;
+  service_interval_months: number | null;
+  service_next_due: string | null;
+  service_notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +48,14 @@ export function toLocationRef(location: Location | undefined): LocationRef | nul
     path_ids: location.path_ids,
     path_label: location.path_label
   };
+}
+
+export function todayDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function isServiceDue(nextDue: string | null | undefined): boolean {
+  return Boolean(nextDue && nextDue <= todayDate());
 }
 
 export function toItem(row: ItemRow, ctx: HydrateContext): ItemSummary {
@@ -95,6 +106,13 @@ export function toItem(row: ItemRow, ctx: HydrateContext): ItemSummary {
     ha_enabled: Boolean(row.ha_enabled),
     low_stock: lowStock,
     total_value: pricingEnabled && row.price !== null ? round2(row.price * row.quantity) : null,
+    service_interval_months:
+      row.service_interval_months === null || row.service_interval_months === undefined
+        ? null
+        : Number(row.service_interval_months),
+    service_next_due: row.service_next_due ?? null,
+    service_notes: row.service_notes ?? null,
+    service_due: isServiceDue(row.service_next_due),
     photo: photos[0] ?? null,
     attachment_count: attachments.length,
     photos,
@@ -109,6 +127,7 @@ export function toAttachment(row: Record<string, unknown>): Attachment {
     id: String(row.id),
     item_id: (row.item_id as string | null) ?? null,
     location_id: (row.location_id as string | null) ?? null,
+    service_record_id: (row.service_record_id as string | null) ?? null,
     kind: row.kind as 'photo' | 'document',
     original_name: String(row.original_name),
     mime_type: String(row.mime_type),
@@ -116,6 +135,23 @@ export function toAttachment(row: Record<string, unknown>): Attachment {
     caption: (row.caption as string | null) ?? null,
     url: `/media/${String(row.id)}`,
     created_at: String(row.created_at)
+  };
+}
+
+export function toServiceRecord(
+  row: Record<string, unknown>,
+  attachments: Attachment[] = []
+): ServiceRecord {
+  return {
+    id: String(row.id),
+    item_id: String(row.item_id),
+    performed_at: String(row.performed_at),
+    notes: (row.notes as string | null) ?? null,
+    cost: pricingEnabled && row.cost !== null && row.cost !== undefined ? Number(row.cost) : null,
+    currency: (row.currency as string | null) ?? null,
+    attachments,
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at)
   };
 }
 

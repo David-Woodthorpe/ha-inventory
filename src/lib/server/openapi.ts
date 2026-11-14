@@ -7,6 +7,7 @@ const error = ref('Error');
 const location = ref('Location');
 const item = ref('Item');
 const itemDetail = ref('ItemDetail');
+const serviceRecord = ref('ServiceRecord');
 
 const json = (schema: unknown) => ({ 'application/json': { schema } });
 
@@ -29,6 +30,7 @@ export const openapi = {
   tags: [
     { name: 'Items', description: 'Parts, components, tools and supplies' },
     { name: 'Locations', description: 'Nested storage locations' },
+    { name: 'Service', description: 'Optional maintenance history and recurring service schedules' },
     { name: 'Attachments', description: 'Photos, manuals and other documents' },
     { name: 'Discovery', description: 'Metadata, search and exports' }
   ],
@@ -190,6 +192,71 @@ export const openapi = {
         }
       }
     },
+    '/items/{id}/service': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Service'],
+        summary: 'List service history for an item',
+        responses: {
+          '200': {
+            description: 'Service records, newest first',
+            content: json({
+              type: 'object',
+              properties: { data: { type: 'array', items: serviceRecord } }
+            })
+          },
+          '404': errorResponses['404']
+        }
+      },
+      post: {
+        tags: ['Service'],
+        summary: 'Log a service record',
+        description:
+          'When the item has a service interval, the next due date is advanced from the latest record date. A Home Assistant calendar event is created or moved when calendar sync is configured.',
+        requestBody: { required: true, content: json(ref('ServiceRecordInput')) },
+        responses: {
+          '201': {
+            description: 'Service record created',
+            content: json({ type: 'object', properties: { data: serviceRecord } })
+          },
+          ...errorResponses
+        }
+      }
+    },
+    '/items/{id}/service/{recordId}': {
+      parameters: [
+        { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'recordId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+      ],
+      get: {
+        tags: ['Service'],
+        summary: 'Get a service record',
+        responses: {
+          '200': {
+            description: 'Service record',
+            content: json({ type: 'object', properties: { data: serviceRecord } })
+          },
+          '404': errorResponses['404']
+        }
+      },
+      patch: {
+        tags: ['Service'],
+        summary: 'Update a service record',
+        requestBody: { required: true, content: json(ref('ServiceRecordInput')) },
+        responses: {
+          '200': {
+            description: 'Updated service record',
+            content: json({ type: 'object', properties: { data: serviceRecord } })
+          },
+          ...errorResponses
+        }
+      },
+      delete: {
+        tags: ['Service'],
+        summary: 'Delete a service record and its attachments',
+        responses: { '204': { description: 'Deleted' }, '404': errorResponses['404'] }
+      }
+    },
     '/locations': {
       get: {
         tags: ['Locations'],
@@ -299,7 +366,8 @@ export const openapi = {
         summary: 'List attachments',
         parameters: [
           { name: 'item_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
-          { name: 'location_id', in: 'query', schema: { type: 'string', format: 'uuid' } }
+          { name: 'location_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          { name: 'service_record_id', in: 'query', schema: { type: 'string', format: 'uuid' } }
         ],
         responses: {
           '200': {
@@ -312,7 +380,7 @@ export const openapi = {
         tags: ['Attachments'],
         summary: 'Upload a photo or document',
         description:
-          'multipart/form-data. Provide exactly one of item_id or location_id. kind is inferred from the MIME type when omitted.',
+          'multipart/form-data. Provide exactly one of item_id or location_id, or a service_record_id to attach a receipt to a service record. kind is inferred from the MIME type when omitted.',
         requestBody: {
           required: true,
           content: {
@@ -324,6 +392,7 @@ export const openapi = {
                   file: { type: 'string', format: 'binary' },
                   item_id: { type: 'string', format: 'uuid' },
                   location_id: { type: 'string', format: 'uuid' },
+                  service_record_id: { type: 'string', format: 'uuid' },
                   kind: { type: 'string', enum: ['photo', 'document'] },
                   caption: { type: 'string' }
                 }
@@ -530,6 +599,7 @@ export const openapi = {
           id: { type: 'string', format: 'uuid' },
           item_id: { type: 'string', format: 'uuid', nullable: true },
           location_id: { type: 'string', format: 'uuid', nullable: true },
+          service_record_id: { type: 'string', format: 'uuid', nullable: true },
           kind: { type: 'string', enum: ['photo', 'document'] },
           original_name: { type: 'string' },
           mime_type: { type: 'string' },
@@ -582,7 +652,53 @@ export const openapi = {
             default: false,
             description:
               'Publish this item to Home Assistant via MQTT discovery. New items default to false. Published items stay visible even when their location is hidden and are grouped under the nearest published location device.'
-          }
+          },
+          service_interval_months: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 120,
+            nullable: true,
+            description: 'Optional service interval. Logging a service advances the next due date by this many months.'
+          },
+          service_next_due: {
+            type: 'string',
+            format: 'date',
+            nullable: true,
+            description: 'Date-only next service date (YYYY-MM-DD). Added to the configured Home Assistant calendar.'
+          },
+          service_notes: { type: 'string', nullable: true }
+        }
+      },
+      ServiceRecordInput: {
+        type: 'object',
+        required: ['performed_at'],
+        properties: {
+          performed_at: { type: 'string', format: 'date', example: '2026-05-12' },
+          notes: { type: 'string', nullable: true },
+          ...(pricingEnabled
+            ? {
+                cost: { type: 'number', minimum: 0, nullable: true },
+                currency: { type: 'string', nullable: true, example: 'GBP' }
+              }
+            : {})
+        }
+      },
+      ServiceRecord: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          item_id: { type: 'string', format: 'uuid' },
+          performed_at: { type: 'string', format: 'date' },
+          notes: { type: 'string', nullable: true },
+          ...(pricingEnabled
+            ? {
+                cost: { type: 'number', nullable: true },
+                currency: { type: 'string', nullable: true }
+              }
+            : {}),
+          attachments: { type: 'array', items: attachment },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' }
         }
       },
       Item: {
@@ -615,6 +731,13 @@ export const openapi = {
           archived: { type: 'boolean' },
           ha_enabled: { type: 'boolean' },
           low_stock: { type: 'boolean' },
+          service_interval_months: { type: 'integer', nullable: true },
+          service_next_due: { type: 'string', format: 'date', nullable: true },
+          service_notes: { type: 'string', nullable: true },
+          service_due: {
+            type: 'boolean',
+            description: 'True when service_next_due is today or in the past'
+          },
           ...(pricingEnabled ? { total_value: { type: 'number', nullable: true } } : {}),
           photo: { allOf: [attachment], nullable: true },
           attachment_count: { type: 'integer' },
@@ -630,7 +753,8 @@ export const openapi = {
           {
             type: 'object',
             properties: {
-              movements: { type: 'array', items: ref('StockMovement') }
+              movements: { type: 'array', items: ref('StockMovement') },
+              service_records: { type: 'array', items: serviceRecord }
             }
           }
         ]

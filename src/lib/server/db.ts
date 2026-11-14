@@ -87,6 +87,38 @@ const migrations: string[] = [
 
   ALTER TABLE locations ADD COLUMN ha_enabled INTEGER NOT NULL DEFAULT 0;
   UPDATE locations SET ha_enabled = 1;
+  `,
+  // v3 — optional service history and recurring service schedule
+  //
+  // service_next_due is stored as a date-only string (YYYY-MM-DD) so it maps
+  // cleanly to an all-day event in a Home Assistant local calendar.
+  `
+  ALTER TABLE items ADD COLUMN service_interval_months INTEGER;
+  ALTER TABLE items ADD COLUMN service_next_due TEXT;
+  ALTER TABLE items ADD COLUMN service_notes TEXT;
+
+  CREATE TABLE service_records (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    performed_at TEXT NOT NULL,
+    notes TEXT,
+    cost REAL,
+    currency TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_service_records_item ON service_records(item_id, performed_at DESC);
+
+  ALTER TABLE attachments ADD COLUMN service_record_id TEXT REFERENCES service_records(id) ON DELETE CASCADE;
+  CREATE INDEX idx_attachments_service_record ON attachments(service_record_id);
+
+  CREATE TABLE service_calendar_events (
+    item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+    entity_id TEXT NOT NULL,
+    uid TEXT NOT NULL,
+    due_date TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
   `
 ];
 

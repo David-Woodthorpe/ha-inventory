@@ -27,6 +27,9 @@ export function emptyItemFormValues(currency = 'GBP'): ItemFormValues {
     tags: '',
     archived: false,
     ha_enabled: false,
+    service_interval_months: '',
+    service_next_due: '',
+    service_notes: '',
     custom_fields: []
   };
 }
@@ -52,6 +55,10 @@ export function itemToFormValues(item: Item): ItemFormValues {
     tags: item.tags.join(', '),
     archived: item.archived,
     ha_enabled: item.ha_enabled,
+    service_interval_months:
+      item.service_interval_months === null ? '' : String(item.service_interval_months),
+    service_next_due: item.service_next_due ?? '',
+    service_notes: item.service_notes ?? '',
     custom_fields: Object.entries(item.custom_fields).map(([key, value]) => ({
       key,
       value: typeof value === 'string' ? value : JSON.stringify(value)
@@ -94,6 +101,9 @@ export function readItemForm(form: FormData): { values: ItemFormValues; input: R
     tags: text(form, 'tags'),
     archived: form.get('archived') === 'on',
     ha_enabled: form.get('ha_enabled') === 'on',
+    service_interval_months: text(form, 'service_interval_months'),
+    service_next_due: text(form, 'service_next_due'),
+    service_notes: text(form, 'service_notes'),
     custom_fields: customRows
   };
 
@@ -123,7 +133,11 @@ export function readItemForm(form: FormData): { values: ItemFormValues; input: R
       .filter(Boolean),
     custom_fields: customFields,
     archived: values.archived,
-    ha_enabled: values.ha_enabled
+    ha_enabled: values.ha_enabled,
+    service_interval_months:
+      values.service_interval_months === '' ? null : values.service_interval_months,
+    service_next_due: values.service_next_due,
+    service_notes: values.service_notes
   };
 
   return { values, input };

@@ -18,9 +18,11 @@ import {
   toAttachment,
   toItem,
   toMovement,
+  toServiceRecord,
   type HydrateContext,
   type ItemRow
 } from './serialize';
+import { deleteServiceCalendarEvent, requestServiceCalendarSync } from './calendar';
 
 type SqlValue = string | number | null;
 
@@ -44,7 +46,10 @@ const itemColumns = [
   'tags',
   'custom_fields',
   'archived',
-  'ha_enabled'
+  'ha_enabled',
+  'service_interval_months',
+  'service_next_due',
+  'service_notes'
 ] as const;
 
 function escapeLike(value: string): string {
@@ -58,7 +63,9 @@ function hydrateContext(itemIds: string[]): HydrateContext {
     const placeholders = itemIds.map(() => '?').join(', ');
     const rows = db
       .prepare(
-        `SELECT * FROM attachments WHERE item_id IN (${placeholders}) ORDER BY created_at ASC, original_name ASC`
+        `SELECT * FROM attachments
+         WHERE item_id IN (${placeholders}) AND service_record_id IS NULL
+         ORDER BY created_at ASC, original_name ASC`
       )
       .all(...itemIds) as unknown as Array<Record<string, unknown>>;
     for (const row of rows) {
@@ -171,9 +178,39 @@ export function getItem(id: string): ItemDetail {
   const movements = db
     .prepare('SELECT * FROM stock_movements WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 100')
     .all(id) as unknown as Array<Record<string, unknown>>;
+  const serviceRows = db
+    .prepare(
+      'SELECT * FROM service_records WHERE item_id = ? ORDER BY performed_at DESC, created_at DESC, rowid DESC'
+    )
+    .all(id) as unknown as Array<Record<string, unknown>>;
+
+  const attachmentsByRecord = new Map<string, Attachment[]>();
+  if (serviceRows.length) {
+    const placeholders = serviceRows.map(() => '?').join(', ');
+    const attachmentRows = db
+      .prepare(
+        `SELECT * FROM attachments
+         WHERE service_record_id IN (${placeholders})
+         ORDER BY created_at ASC, original_name ASC`
+      )
+      .all(...serviceRows.map((serviceRow) => String(serviceRow.id))) as unknown as Array<
+      Record<string, unknown>
+    >;
+    for (const attachmentRow of attachmentRows) {
+      const attachment = toAttachment(attachmentRow);
+      if (!attachment.service_record_id) continue;
+      const list = attachmentsByRecord.get(attachment.service_record_id) ?? [];
+      list.push(attachment);
+      attachmentsByRecord.set(attachment.service_record_id, list);
+    }
+  }
+
   return {
     ...toItem(row, ctx),
-    movements: movements.map(toMovement)
+    movements: movements.map(toMovement),
+    service_records: serviceRows.map((serviceRow) =>
+      toServiceRecord(serviceRow, attachmentsByRecord.get(String(serviceRow.id)) ?? [])
+    )
   };
 }
 
@@ -255,6 +292,9 @@ export function createItem(input: unknown): ItemDetail {
     JSON.stringify(data.custom_fields ?? {}),
     data.archived ? 1 : 0,
     data.ha_enabled ? 1 : 0,
+    data.service_interval_months ?? null,
+    data.service_next_due ?? null,
+    data.service_notes ?? null,
     now,
     now
   ];
@@ -264,11 +304,14 @@ export function createItem(input: unknown): ItemDetail {
       `INSERT INTO items (
         id, name, sku, description, category, quantity, unit, min_quantity, location_id,
         manufacturer, mpn, supplier, supplier_url, price, currency, datasheet_url, notes,
-        tags, custom_fields, archived, ha_enabled, created_at, updated_at
+        tags, custom_fields, archived, ha_enabled, service_interval_months, service_next_due,
+        service_notes, created_at, updated_at
       ) VALUES (${values.map(() => '?').join(', ')})`
     ).run(...values);
     if (quantity > 0) addMovement(id, quantity, 'initial', 'Initial stock level');
   });
+
+  if (data.service_interval_months || data.service_next_due) requestServiceCalendarSync(id);
 
   return getItem(id);
 }
@@ -333,11 +376,26 @@ export function updateItem(id: string, input: unknown): ItemDetail {
     }
   });
 
+  if (
+    'service_interval_months' in data ||
+    'service_next_due' in data ||
+    'service_notes' in data ||
+    'name' in data ||
+    'sku' in data ||
+    'location_id' in data
+  ) {
+    requestServiceCalendarSync(id);
+  }
+
   return getItem(id);
 }
 
 export function deleteItem(id: string): void {
   getItemRow(id);
+  // Remove the calendar event before the row (and its calendar mapping) is
+  // deleted. The function reads the mapping synchronously, then talks to Home
+  // Assistant in the background.
+  deleteServiceCalendarEvent(id);
   const attachments = db
     .prepare('SELECT filename FROM attachments WHERE item_id = ?')
     .all(id) as unknown as Array<{ filename: string }>;
@@ -412,13 +470,26 @@ export function exportAll() {
       Record<string, unknown>
     >
   ).map(toMovement);
+  const attachmentsByRecord = new Map<string, Attachment[]>();
+  for (const attachment of attachments) {
+    if (!attachment.service_record_id) continue;
+    const list = attachmentsByRecord.get(attachment.service_record_id) ?? [];
+    list.push(attachment);
+    attachmentsByRecord.set(attachment.service_record_id, list);
+  }
+  const serviceRecords = (
+    db.prepare('SELECT * FROM service_records ORDER BY created_at ASC').all() as unknown as Array<
+      Record<string, unknown>
+    >
+  ).map((row) => toServiceRecord(row, attachmentsByRecord.get(String(row.id)) ?? []));
   return {
     exported_at: nowIso(),
-    schema_version: 1,
+    schema_version: 2,
     locations: getLocations(),
     items,
     attachments,
-    movements
+    movements,
+    service_records: serviceRecords
   };
 }
 
@@ -448,7 +519,9 @@ export function itemSummaryCounts() {
 
 export function getItemAttachments(id: string): Attachment[] {
   const rows = db
-    .prepare('SELECT * FROM attachments WHERE item_id = ? ORDER BY created_at ASC')
+    .prepare(
+      'SELECT * FROM attachments WHERE item_id = ? AND service_record_id IS NULL ORDER BY created_at ASC'
+    )
     .all(id) as unknown as Array<Record<string, unknown>>;
   return rows.map(toAttachment);
 }
