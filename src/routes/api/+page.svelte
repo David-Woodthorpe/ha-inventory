@@ -77,6 +77,20 @@
       ]
     },
     {
+      title: 'Categories',
+      icon: 'tag',
+      endpoints: [
+        { method: 'GET', path: '/categories', desc: 'With item counts, icons and image URLs' },
+        { method: 'POST', path: '/categories', desc: 'Create with optional icon' },
+        { method: 'GET', path: '/categories/{id}', desc: 'One category' },
+        { method: 'PATCH', path: '/categories/{id}', desc: 'Rename or update (renames items too)' },
+        { method: 'DELETE', path: '/categories/{id}', desc: 'Delete; items become uncategorised' },
+        { method: 'GET', path: '/categories/{id}/image', desc: 'Category image' },
+        { method: 'POST', path: '/categories/{id}/image', desc: 'Upload or replace image' },
+        { method: 'DELETE', path: '/categories/{id}/image', desc: 'Remove image' }
+      ]
+    },
+    {
       title: 'Attachments',
       icon: 'file',
       endpoints: [

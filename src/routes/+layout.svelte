@@ -89,6 +89,13 @@
         <span class="nav-count">{data.stats.item_count}</span>
       {/if}
     </a>
+    <a class="nav-link" class:active={isActive('/categories')} href={h('/categories')}>
+      <Icon name="tag" size={18} />
+      Categories
+      {#if data.stats.category_count > 0}
+        <span class="nav-count">{data.stats.category_count}</span>
+      {/if}
+    </a>
     <a class="nav-link" class:active={isActive('/locations')} href={h('/locations')}>
       <Icon name="pin" size={18} />
       Locations

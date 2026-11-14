@@ -76,6 +76,16 @@ A barcode scanner that types the code and presses Enter will save the item and o
 prefilled copy, so you can scan a whole stack without touching the mouse. Choose **Cancel** to stop
 and return to the source item.
 
+## Categories and fallback artwork
+
+Open **Categories** in the sidebar to create, rename or delete categories. Each category can have a
+built-in icon and an optional uploaded image. Renaming a category updates every item that uses it;
+deleting one keeps the items but clears their category label.
+
+When an item has no photo of its own, the item list, overview and item page show its category image
+first, or the category icon when no image is set. This keeps the catalogue recognisable without
+uploading a photo for every part.
+
 ## Home Assistant MQTT discovery
 
 Locations can be published to Home Assistant as MQTT devices, with item

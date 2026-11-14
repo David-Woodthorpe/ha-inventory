@@ -1,5 +1,5 @@
-import type { Item, Location } from '$lib/types';
-import type { ItemFormValues, LocationFormValues } from '$lib/form-types';
+import type { Category, Item, Location } from '$lib/types';
+import type { CategoryFormValues, ItemFormValues, LocationFormValues } from '$lib/form-types';
 
 function text(form: FormData, key: string): string {
   const value = form.get(key);
@@ -176,6 +176,37 @@ export function readLocationForm(form: FormData): {
       description: values.description,
       code: values.code,
       ha_enabled: values.ha_enabled
+    }
+  };
+}
+
+export function emptyCategoryFormValues(): CategoryFormValues {
+  return { name: '', description: '', icon: '' };
+}
+
+export function categoryToFormValues(category: Category): CategoryFormValues {
+  return {
+    name: category.name,
+    description: category.description ?? '',
+    icon: category.icon ?? ''
+  };
+}
+
+export function readCategoryForm(form: FormData): {
+  values: CategoryFormValues;
+  input: Record<string, unknown>;
+} {
+  const values: CategoryFormValues = {
+    name: text(form, 'name'),
+    description: text(form, 'description'),
+    icon: text(form, 'icon')
+  };
+  return {
+    values,
+    input: {
+      name: values.name,
+      description: values.description,
+      icon: values.icon
     }
   };
 }

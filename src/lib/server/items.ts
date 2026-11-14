@@ -9,6 +9,7 @@ import type {
   ItemListResult,
   ItemRef
 } from '$lib/types';
+import { categoryLookup, ensureCategory, listCategories } from './categories';
 import { db, nowIso, transaction } from './db';
 import { defaultCurrency, pricingEnabled, uploadDir } from './config';
 import { ApiError, conflict, notFound } from './errors';
@@ -95,7 +96,7 @@ function hydrateContext(itemIds: string[]): HydrateContext {
       attachmentsByItem.set(attachment.item_id, list);
     }
   }
-  return { locations, attachmentsByItem };
+  return { locations, attachmentsByItem, categories: categoryLookup() };
 }
 
 function getItemRow(id: string): ItemRow {
@@ -285,6 +286,7 @@ export function createItem(input: unknown): ItemDetail {
   const data = parseWith(itemCreateSchema, withoutPricing(input)) as ItemInput;
   ensureLocationExists(data.location_id);
   ensureSkuAvailable(data.sku);
+  data.category = ensureCategory(data.category);
 
   const id = randomUUID();
   const now = nowIso();
@@ -358,6 +360,9 @@ export function updateItem(id: string, input: unknown): ItemDetail {
 
   if ('location_id' in data) ensureLocationExists(data.location_id as string | null);
   if ('sku' in data) ensureSkuAvailable(data.sku as string | null, id);
+  if ('category' in data) {
+    data.category = ensureCategory(data.category as string | null | undefined);
+  }
 
   const fields: string[] = [];
   const values: SqlValue[] = [];
@@ -513,7 +518,8 @@ export function exportAll() {
   ).map((row) => toServiceRecord(row, attachmentsByRecord.get(String(row.id)) ?? []));
   return {
     exported_at: nowIso(),
-    schema_version: 3,
+    schema_version: 4,
+    categories: listCategories(),
     locations,
     items,
     stock: listAllStock(),

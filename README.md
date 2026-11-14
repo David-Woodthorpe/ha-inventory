@@ -24,6 +24,8 @@ Workshop
 - **Arbitrarily nested locations** — rooms, shelves, drawers, bins; move a branch without breaking it.
 - **Items** with quantity, unit, low-stock threshold, SKU, category, tags, supplier, optional price,
   manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
+- **Managed categories** — create, rename and delete categories in one place. Give each category a
+  built-in icon or an uploaded image; items without a photo show their category artwork.
 - **Stock movements** — every change is recorded with a reason and note; quick +/- buttons and manual
   adjustments. Quantities may be fractional (metres of wire, grams of paste).
 - **Multi-location stock** — keep one SKU in several bins at once. Transfer part of the quantity
@@ -504,6 +506,14 @@ empty `currencies` list, and `price`/`currency` fields on create or update reque
 | `GET` | `/locations/{id}` | Location, children and breadcrumb. |
 | `PATCH` | `/locations/{id}` | Rename or move a location. |
 | `DELETE` | `/locations/{id}` | Delete only when empty (`409` otherwise). |
+| `GET` | `/categories` | Managed categories with item counts, icons and image URLs. |
+| `POST` | `/categories` | Create a category with a name, optional description and icon. |
+| `GET` | `/categories/{id}` | One category. |
+| `PATCH` | `/categories/{id}` | Rename or update a category. Renaming updates every item that uses it. |
+| `DELETE` | `/categories/{id}` | Delete a category; its items are kept and become uncategorised. |
+| `GET` | `/categories/{id}/image` | Category image. |
+| `POST` | `/categories/{id}/image` | Upload or replace the category image (`multipart/form-data`, `file` field). |
+| `DELETE` | `/categories/{id}/image` | Remove the category image. |
 | `GET` | `/attachments` | Filter with `item_id`, `location_id` or `service_record_id`. |
 | `POST` | `/attachments` | `multipart/form-data` upload; add `service_record_id` for a service receipt. |
 | `GET` | `/attachments/{id}` | Attachment metadata. |
@@ -521,6 +531,13 @@ BASE=http://localhost:3000/api/v1
 
 # Inspect the existing taxonomy and locations
 curl "$BASE/meta"
+
+# Create a category with a fallback icon, then give it an image
+curl -X POST "$BASE/categories" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Resistors","icon":"cpu"}'
+curl -X POST "$BASE/categories/<category-id>/image" \
+  -F 'file=@resistors.png'
 
 # Create a nested location
 curl -X POST "$BASE/locations" \

@@ -28,7 +28,9 @@
     focusSku?: boolean;
   } = $props();
 
-  const cancel = $derived(withBase(page.data.ingressPath ?? '', cancelHref));
+  const h = (path: string) => withBase(page.data.ingressPath ?? '', path);
+  const cancel = $derived(h(cancelHref));
+  const categoriesHref = $derived(h('/categories'));
   const pricingEnabled = $derived(page.data.pricingEnabled ?? true);
 
   // Focusing through an action rather than the autofocus attribute avoids the
@@ -112,20 +114,21 @@
 
         <div class="field">
           <label class="label" for="category">Category</label>
-          <input
-            id="category"
-            class="input"
-            name="category"
-            list="category-options"
-            value={values.category}
-            placeholder="e.g. Resistors"
-            maxlength="120"
-          />
-          <datalist id="category-options">
-            {#each options.categories as category}
-              <option value={category.category}></option>
+          <select id="category" class="select" name="category">
+            <option value="" selected={!values.category}>Uncategorised</option>
+            {#each options.categories as category (category.category)}
+              <option value={category.category} selected={category.category === values.category}>
+                {category.category}{category.count === 0 ? ' (empty)' : ''}
+              </option>
             {/each}
-          </datalist>
+            {#if values.category && !options.categories.some((category) => category.category.toLowerCase() === values.category.toLowerCase())}
+              <option value={values.category} selected>{values.category} (unmanaged)</option>
+            {/if}
+          </select>
+          <span class="hint">
+            Categories, icons and images are managed in
+            <a class="link" href={categoriesHref}>Categories</a>.
+          </span>
         </div>
 
         <div class="field full">

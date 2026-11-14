@@ -185,6 +185,48 @@ const migrations: string[] = [
     substr(id, 17, 4) || '-' ||
     substr(id, 21, 12)
   WHERE length(id) = 32 AND instr(id, '-') = 0;
+  `,
+  // v6 — managed categories with optional icon or image
+  //
+  // items.category stays as text so existing exports, searches and API clients
+  // keep working. The categories table is the managed catalogue: it holds the
+  // display icon/image and provides a single place to rename or remove a
+  // category. Existing category names on items are copied in so nothing is lost
+  // when upgrading.
+  `
+  CREATE TABLE categories (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    icon TEXT,
+    image_filename TEXT,
+    image_mime_type TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX idx_categories_name ON categories(name COLLATE NOCASE);
+  CREATE INDEX idx_categories_sort ON categories(sort_order);
+
+  UPDATE items SET category = trim(category)
+  WHERE category IS NOT NULL AND category <> trim(category);
+
+  INSERT INTO categories (id, name, sort_order, created_at, updated_at)
+  SELECT
+    lower(
+      hex(randomblob(4)) || '-' ||
+      hex(randomblob(2)) || '-' ||
+      hex(randomblob(2)) || '-' ||
+      hex(randomblob(2)) || '-' ||
+      hex(randomblob(6))
+    ),
+    MIN(category),
+    0,
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  FROM items
+  WHERE category IS NOT NULL AND category <> ''
+  GROUP BY category COLLATE NOCASE;
   `
 ];
 

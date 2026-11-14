@@ -1,4 +1,4 @@
-import type { Attachment, Item, Location, ServiceRecord, StockMovement } from '$lib/types';
+import type { Attachment, Category, Item, Location, ServiceRecord, StockMovement } from '$lib/types';
 import { pricingEnabled } from './config';
 
 export type LocationRef = Pick<Location, 'id' | 'name' | 'path' | 'path_ids' | 'path_label'>;
@@ -37,6 +37,7 @@ export type ItemSummary = Item;
 export interface HydrateContext {
   locations: Map<string, Location>;
   attachmentsByItem: Map<string, Attachment[]>;
+  categories: Map<string, Category>;
 }
 
 export function toLocationRef(location: Location | undefined): LocationRef | null {
@@ -79,6 +80,7 @@ export function toItem(row: ItemRow, ctx: HydrateContext): ItemSummary {
   const photos = attachments.filter((a) => a.kind === 'photo');
   const documents = attachments.filter((a) => a.kind === 'document');
   const location = row.location_id ? ctx.locations.get(row.location_id) : undefined;
+  const category = row.category ? ctx.categories.get(row.category.toLowerCase()) : undefined;
   const lowStock = row.min_quantity > 0 && row.quantity <= row.min_quantity;
 
   return {
@@ -87,6 +89,8 @@ export function toItem(row: ItemRow, ctx: HydrateContext): ItemSummary {
     sku: row.sku,
     description: row.description,
     category: row.category,
+    category_icon: category?.icon ?? null,
+    category_image_url: category?.image_url ?? null,
     quantity: row.quantity,
     unit: row.unit,
     min_quantity: row.min_quantity,

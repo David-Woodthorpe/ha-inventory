@@ -36,6 +36,7 @@ ${auth}
 - Upload photos/manuals with POST /attachments as multipart/form-data (file, item_id or location_id, kind=photo|document, caption).
 - Log maintenance with POST /items/{id}/service. Each service record has a date and optional notes, cost and receipt uploads. Service schedules are optional per item.
 - Locations are a tree. Create nested locations by passing parent_id. GET /locations?tree=true returns the tree.
+- Categories are managed records. Create one with POST /categories, then use its name as the item's "category". Each category can have a built-in icon and an uploaded image; items without a photo expose category_icon and category_image_url as display fallbacks. Renaming a category updates its items.
 - Responses are {"data": ...} on success and {"error": {"code","message","details"}} on failure. HTTP status codes are meaningful.
 - List endpoints are paginated with limit/offset and return pagination.total + pagination.has_more.
 
@@ -65,6 +66,14 @@ POST   /locations                       ({"name":"Drawer 1a","parent_id":"..."})
 GET    /locations/{id}
 PATCH  /locations/{id}
 DELETE /locations/{id}
+GET    /categories                        (with item counts, icons and image URLs)
+POST   /categories                        ({"name":"Resistors","icon":"cpu"})
+GET    /categories/{id}
+PATCH  /categories/{id}                   (rename updates every item in the category)
+DELETE /categories/{id}                   (items are kept and become uncategorised)
+GET    /categories/{id}/image
+POST   /categories/{id}/image             (multipart/form-data file=@icon.png)
+DELETE /categories/{id}/image
 GET    /attachments?item_id={id}&service_record_id={id}
 POST   /attachments                     (multipart/form-data; add service_record_id for a service receipt)
 GET    /attachments/{id}
@@ -150,6 +159,7 @@ curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
 - item.quantity is the total across all locations and item.location_id is the primary (largest) lot. GET /items/{id} also returns "stock" (one entry per location) plus "components" (parts installed here) and "assigned_to" (hosts this item is installed in).
 - Transfers keep the total unchanged and are recorded in the movement history with the source and destination locations.
 - low_stock is true when min_quantity > 0 and quantity <= min_quantity.
+- item.category_icon and item.category_image_url are display fallbacks from the managed category. Use category_image_url first, then category_icon, when the item has no photo.
 - service_due is true when service_next_due is today or in the past. Logging a service on an item with service_interval_months advances service_next_due from the latest record date.
 - When the instance has a Home Assistant calendar configured, the next due date is kept as an all-day calendar event automatically. No extra API call is needed.
 - ha_enabled controls whether an item or location is published to Home Assistant with MQTT discovery. New items and locations default to false. Turning off a location hides it and its sublocations, but items published individually stay visible and are grouped with the nearest published location (or the Inventory hub).

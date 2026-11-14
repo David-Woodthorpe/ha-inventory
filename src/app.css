@@ -1033,6 +1033,12 @@ table.data th.num {
   background: var(--surface-2);
 }
 
+.thumb-category {
+  object-fit: contain;
+  padding: 4px;
+  background: var(--surface-2);
+}
+
 .qty {
   font-family: var(--mono);
   font-size: 13px;
@@ -1741,10 +1747,30 @@ table.data th.num {
 
 .category-name {
   width: 42%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-soft);
+}
+
+.category-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--faint);
+}
+
+.category-thumb {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
 }
 
 .category-track {

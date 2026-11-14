@@ -160,6 +160,24 @@ export const serviceRecordUpdateSchema = z
 
 export type ServiceRecordInput = z.infer<typeof serviceRecordCreateSchema>;
 
+export const categoryCreateSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(120),
+  description: optionalText(2000),
+  icon: optionalText(60),
+  sort_order: optionalNumber(Number.NEGATIVE_INFINITY)
+});
+
+export const categoryUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    description: optionalText(2000),
+    icon: optionalText(60),
+    sort_order: optionalNumber(Number.NEGATIVE_INFINITY)
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'Provide at least one field to update'
+  });
+
 export const locationCreateSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),
   parent_id: optionalId,

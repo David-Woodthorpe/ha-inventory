@@ -117,6 +117,37 @@ async function ensureLocations() {
   return byPath;
 }
 
+// ── Categories ───────────────────────────────────────────────────────────────
+
+const categorySpec = [
+  { name: 'Resistors', icon: 'signal', description: 'Through-hole and surface-mount resistors' },
+  { name: 'Capacitors', icon: 'battery', description: 'Ceramic, electrolytic and film capacitors' },
+  { name: 'Diodes', icon: 'bolt', description: 'Rectifiers, LEDs and protection diodes' },
+  { name: 'Microcontrollers', icon: 'cpu', description: 'Dev boards, modules and ICs' },
+  { name: 'Power', icon: 'plug', description: 'Supplies, adapters and batteries' },
+  { name: 'Cables', icon: 'plug', description: 'USB, mains and jumper cables' },
+  { name: 'Wire', icon: 'signal', description: 'Hook-up wire and heat-shrink' },
+  { name: 'Consumables', icon: 'flask', description: 'Solder, flux, tape and cleaning supplies' },
+  { name: 'Hardware', icon: 'nut', description: 'Screws, nuts, standoffs and fixings' },
+  { name: 'Tools', icon: 'tool', description: 'Hand tools, meters and workshop equipment' }
+];
+
+async function ensureCategories() {
+  const { data } = await api('/categories');
+  const existing = new Set(data.map((category) => category.name.toLowerCase()));
+
+  for (const spec of categorySpec) {
+    if (existing.has(spec.name.toLowerCase())) continue;
+
+    const { data: category } = await api('/categories', {
+      method: 'POST',
+      body: JSON.stringify(spec)
+    });
+
+    log('+', `category ${category.name}`);
+  }
+}
+
 // ── Items ────────────────────────────────────────────────────────────────────
 
 const itemSpec = [
@@ -663,6 +694,7 @@ async function main() {
   const { data: meta } = await api('/meta');
   currency = meta.stats.currency || currency;
 
+  await ensureCategories();
   const locations = await ensureLocations();
   const createdItems = await ensureItems(locations);
   const items = await loadItems();

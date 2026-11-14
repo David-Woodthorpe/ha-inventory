@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import type { PageData } from './$types';
   import Icon from '$lib/components/Icon.svelte';
+  import ItemThumb from '$lib/components/ItemThumb.svelte';
   import UploadForm from '$lib/components/UploadForm.svelte';
   import { formatBytes, formatDate, formatNumber, plural } from '$lib/format';
   import { withBase } from '$lib/paths';
@@ -179,11 +180,7 @@
                 <tr>
                   <td>
                     <a class="cell-main" href={h(`/items/${item.id}`)}>
-                      {#if item.photo}
-                        <img class="thumb" src={h(item.photo.url)} alt="" loading="lazy" />
-                      {:else}
-                        <span class="thumb thumb-empty"><Icon name="box" size={17} /></span>
-                      {/if}
+                      <ItemThumb {item} />
                       <span>
                         <span class="cell-title">{item.name}</span>
                         <span class="cell-sub">

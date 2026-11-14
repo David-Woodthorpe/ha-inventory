@@ -29,6 +29,20 @@ export interface LocationNode extends Location {
   children: LocationNode[];
 }
 
+/** A managed category, optionally decorated with an icon or an image. */
+export interface Category {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  image_url: string | null;
+  image_mime_type: string | null;
+  sort_order: number;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Attachment {
   id: string;
   item_id: string | null;
@@ -111,6 +125,10 @@ export interface Item {
   sku: string | null;
   description: string | null;
   category: string | null;
+  /** Fallback icon from the item's category, used when the item has no photo. */
+  category_icon: string | null;
+  /** Fallback image from the item's category, used when the item has no photo. */
+  category_image_url: string | null;
   quantity: number;
   unit: string;
   min_quantity: number;
@@ -181,8 +199,12 @@ export interface Stats {
 }
 
 export interface CategoryCount {
+  /** Null for a legacy category name found on an item but not in the categories table. */
+  id: string | null;
   category: string;
   count: number;
+  icon: string | null;
+  image_url: string | null;
 }
 
 export interface TagCount {

@@ -39,7 +39,7 @@ export function load({ url }: { url: URL }) {
     filters: { q, category, tag, location, low, archived, sort },
     filtered: Boolean(q || category || tag || location || low || archived),
     options: {
-      categories: getCategories(),
+      categories: getCategories().filter((category) => category.count > 0),
       tags: getTags(),
       locations: getLocations()
     }

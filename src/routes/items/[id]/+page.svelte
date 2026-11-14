@@ -67,7 +67,10 @@
   <div>
     <div class="row" style="margin-bottom: 6px;">
       {#if item.category}
-        <span class="badge badge-accent">{item.category}</span>
+        <a class="badge badge-accent" href={h(`/items?category=${encodeURIComponent(item.category)}`)}>
+          {#if item.category_icon}<Icon name={item.category_icon} size={11} />{/if}
+          {item.category}
+        </a>
       {/if}
       {#if item.low_stock}
         <span class="badge badge-low"><Icon name="alert" size={11} /> Low stock</span>
@@ -134,10 +137,14 @@
               <a href={h(currentPhoto.url)} target="_blank" rel="noreferrer" style="display: contents;">
                 <img src={h(currentPhoto.url)} alt={currentPhoto.caption ?? item.name} />
               </a>
+            {:else if item.category_image_url}
+              <img src={h(item.category_image_url)} alt={item.category ?? item.name} />
             {:else}
               <div class="gallery-empty">
-                <Icon name="image" size={30} />
-                <span>No photos yet</span>
+                <Icon name={item.category_icon ?? 'image'} size={30} />
+                <span>
+                  {item.category ? `${item.category} — no photo yet` : 'No photos yet'}
+                </span>
               </div>
             {/if}
           </div>

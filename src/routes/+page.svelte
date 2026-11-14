@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import type { PageData } from './$types';
   import Icon from '$lib/components/Icon.svelte';
+  import ItemThumb from '$lib/components/ItemThumb.svelte';
   import { formatMoney, formatNumber, plural } from '$lib/format';
   import { withBase } from '$lib/paths';
 
@@ -128,11 +129,7 @@
           <div class="recent-list">
             {#each data.recent as item (item.id)}
               <a class="recent-row" href={h(`/items/${item.id}`)}>
-                {#if item.photo}
-                  <img class="thumb" src={h(item.photo.url)} alt="" loading="lazy" />
-                {:else}
-                  <span class="thumb thumb-empty"><Icon name="box" size={17} /></span>
-                {/if}
+                <ItemThumb {item} />
                 <div style="min-width: 0;">
                   <div class="recent-name truncate">{item.name}</div>
                   <div class="recent-sub truncate">
@@ -178,11 +175,7 @@
                   <tr>
                     <td>
                       <a class="cell-main" href={h(`/items/${item.id}`)}>
-                        {#if item.photo}
-                          <img class="thumb" src={h(item.photo.url)} alt="" loading="lazy" />
-                        {:else}
-                          <span class="thumb thumb-empty"><Icon name="box" size={17} /></span>
-                        {/if}
+                        <ItemThumb {item} />
                         <span>
                           <span class="cell-title">{item.name}</span>
                           <span class="cell-sub">{item.location?.path_label ?? 'Unassigned'}</span>
@@ -222,7 +215,16 @@
             <div class="category-bar">
               {#each data.categories as category (category.category)}
                 <a class="category-row" href={h(`/items?category=${encodeURIComponent(category.category)}`)}>
-                  <span class="category-name">{category.category}</span>
+                  <span class="category-name">
+                    {#if category.image_url}
+                      <img class="category-thumb" src={h(category.image_url)} alt="" loading="lazy" />
+                    {:else}
+                      <span class="category-icon">
+                        <Icon name={category.icon ?? 'tag'} size={13} />
+                      </span>
+                    {/if}
+                    <span class="truncate">{category.category}</span>
+                  </span>
                   <span class="category-track">
                     <span
                       class="category-fill"

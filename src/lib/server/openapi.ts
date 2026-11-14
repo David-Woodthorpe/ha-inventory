@@ -5,6 +5,7 @@ const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const attachment = ref('Attachment');
 const error = ref('Error');
 const location = ref('Location');
+const category = ref('Category');
 const item = ref('Item');
 const itemDetail = ref('ItemDetail');
 const serviceRecord = ref('ServiceRecord');
@@ -33,6 +34,7 @@ export const openapi = {
     { name: 'Items', description: 'Parts, components, tools and supplies' },
     { name: 'Stock', description: 'Per-location stock and components signed out to other items' },
     { name: 'Locations', description: 'Nested storage locations' },
+    { name: 'Categories', description: 'Managed item categories with optional icon or image' },
     { name: 'Service', description: 'Optional maintenance history and recurring service schedules' },
     { name: 'Attachments', description: 'Photos, manuals and other documents' },
     { name: 'Discovery', description: 'Metadata, search and exports' }
@@ -465,6 +467,102 @@ export const openapi = {
         }
       }
     },
+    '/categories': {
+      get: {
+        tags: ['Categories'],
+        summary: 'List categories',
+        description:
+          'Returns every managed category with its item count and optional icon/image. Categories are also included in GET /meta.',
+        responses: {
+          '200': {
+            description: 'Categories',
+            content: json({ type: 'object', properties: { data: { type: 'array', items: category } } })
+          }
+        }
+      },
+      post: {
+        tags: ['Categories'],
+        summary: 'Create a category',
+        requestBody: { required: true, content: json(ref('CategoryInput')) },
+        responses: {
+          '201': { description: 'Category created', content: json({ type: 'object', properties: { data: category } }) },
+          ...errorResponses
+        }
+      }
+    },
+    '/categories/{id}': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Categories'],
+        summary: 'Get a category',
+        responses: {
+          '200': { description: 'Category', content: json({ type: 'object', properties: { data: category } }) },
+          '404': errorResponses['404']
+        }
+      },
+      patch: {
+        tags: ['Categories'],
+        summary: 'Rename or update a category',
+        description:
+          'Renaming a category updates items.category for every item that used the old name. Name matching is case-insensitive.',
+        requestBody: { required: true, content: json(ref('CategoryInput')) },
+        responses: {
+          '200': { description: 'Updated category', content: json({ type: 'object', properties: { data: category } }) },
+          ...errorResponses
+        }
+      },
+      delete: {
+        tags: ['Categories'],
+        summary: 'Delete a category',
+        description:
+          'Deletes the category and clears the category label from its items. The items themselves are kept.',
+        responses: { '204': { description: 'Deleted' }, '404': errorResponses['404'] }
+      }
+    },
+    '/categories/{id}/image': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Categories'],
+        summary: 'Get the category image',
+        responses: {
+          '200': {
+            description: 'Image',
+            content: { 'image/*': { schema: { type: 'string', format: 'binary' } } }
+          },
+          '404': errorResponses['404'],
+          '410': { description: 'Database row exists but the image file is missing', content: json(error) }
+        }
+      },
+      post: {
+        tags: ['Categories'],
+        summary: 'Upload or replace the category image',
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: { file: { type: 'string', format: 'binary' } }
+              }
+            }
+          }
+        },
+        responses: {
+          '201': { description: 'Image saved', content: json({ type: 'object', properties: { data: category } }) },
+          '413': { description: 'File too large', content: json(error) },
+          ...errorResponses
+        }
+      },
+      delete: {
+        tags: ['Categories'],
+        summary: 'Remove the category image',
+        responses: {
+          '200': { description: 'Updated category', content: json({ type: 'object', properties: { data: category } }) },
+          '404': errorResponses['404']
+        }
+      }
+    },
     '/attachments': {
       get: {
         tags: ['Attachments'],
@@ -698,6 +796,39 @@ export const openapi = {
           updated_at: { type: 'string', format: 'date-time' }
         }
       },
+      Category: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'Resistors' },
+          description: { type: 'string', nullable: true },
+          icon: { type: 'string', nullable: true, example: 'cpu' },
+          image_url: {
+            type: 'string',
+            nullable: true,
+            description: 'URL of the uploaded category image, or null when none is set'
+          },
+          image_mime_type: { type: 'string', nullable: true },
+          sort_order: { type: 'integer' },
+          item_count: { type: 'integer', description: 'Number of items in this category, including archived items' },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      CategoryInput: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', example: 'Resistors' },
+          description: { type: 'string', nullable: true },
+          icon: {
+            type: 'string',
+            nullable: true,
+            description: 'Name of a built-in icon such as cpu, tool, bolt, plug, resistor or tag'
+          },
+          sort_order: { type: 'integer', default: 0 }
+        }
+      },
       Attachment: {
         type: 'object',
         properties: {
@@ -869,6 +1000,16 @@ export const openapi = {
           sku: { type: 'string', nullable: true },
           description: { type: 'string', nullable: true },
           category: { type: 'string', nullable: true },
+          category_icon: {
+            type: 'string',
+            nullable: true,
+            description: 'Icon for the category, used by clients when the item has no photo'
+          },
+          category_image_url: {
+            type: 'string',
+            nullable: true,
+            description: 'Image for the category, used by clients when the item has no photo'
+          },
           quantity: { type: 'number' },
           unit: { type: 'string' },
           min_quantity: { type: 'number' },

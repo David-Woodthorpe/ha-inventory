@@ -46,3 +46,9 @@ export interface LocationFormValues {
   code: string;
   ha_enabled: boolean;
 }
+
+export interface CategoryFormValues {
+  name: string;
+  description: string;
+  icon: string;
+}
