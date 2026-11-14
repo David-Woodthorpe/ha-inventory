@@ -155,13 +155,22 @@ export function toServiceRecord(
   };
 }
 
-export function toMovement(row: Record<string, unknown>): StockMovement {
+export function toMovement(
+  row: Record<string, unknown>,
+  locations?: Map<string, Location>
+): StockMovement {
+  const locationId = (row.location_id as string | null) ?? null;
+  const toLocationId = (row.to_location_id as string | null) ?? null;
   return {
     id: String(row.id),
     item_id: String(row.item_id),
     delta: Number(row.delta),
     reason: (row.reason as string | null) ?? null,
     note: (row.note as string | null) ?? null,
+    location_id: locationId,
+    location: toLocationRef(locationId ? locations?.get(locationId) : undefined),
+    to_location_id: toLocationId,
+    to_location: toLocationRef(toLocationId ? locations?.get(toLocationId) : undefined),
     created_at: String(row.created_at)
   };
 }

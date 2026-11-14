@@ -61,7 +61,48 @@ export interface StockMovement {
   delta: number;
   reason: string | null;
   note: string | null;
+  location_id: string | null;
+  location: LocationRef | null;
+  to_location_id: string | null;
+  to_location: LocationRef | null;
   created_at: string;
+}
+
+/** Minimal item reference used by allocations and pickers. */
+export interface ItemRef {
+  id: string;
+  name: string;
+  sku: string | null;
+  unit: string;
+}
+
+/** A quantity of one item held at one location. */
+export interface ItemStockLot {
+  id: string;
+  item_id: string;
+  location_id: string | null;
+  location: LocationRef | null;
+  quantity: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * A component signed out to a host item. The component's stock has already
+ * been removed; returning the allocation puts it back into stock.
+ */
+export interface ItemAllocation {
+  id: string;
+  component_item_id: string;
+  component: ItemRef;
+  host_item_id: string;
+  host: ItemRef;
+  quantity: number;
+  source_location_id: string | null;
+  source_location: LocationRef | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Item {
@@ -102,6 +143,9 @@ export interface Item {
 }
 
 export interface ItemDetail extends Item {
+  stock: ItemStockLot[];
+  components: ItemAllocation[];
+  assigned_to: ItemAllocation[];
   movements: StockMovement[];
   service_records: ServiceRecord[];
 }

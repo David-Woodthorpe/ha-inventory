@@ -31,12 +31,27 @@
         { method: 'GET', path: '/items', desc: 'Search, filter and paginate' },
         { method: 'POST', path: '/items', desc: 'Create one item' },
         { method: 'POST', path: '/items/bulk', desc: 'Create up to 500 items' },
-        { method: 'GET', path: '/items/{id}', desc: 'Item with attachments' },
+        { method: 'GET', path: '/items/{id}', desc: 'Item with stock, components and attachments' },
         { method: 'PATCH', path: '/items/{id}', desc: 'Partial update' },
-        { method: 'DELETE', path: '/items/{id}', desc: 'Delete item and files' },
+        { method: 'DELETE', path: '/items/{id}', desc: 'Delete item and files (409 while installed)' },
+        { method: 'GET', path: '/items/{id}/stock', desc: 'Per-location stock lots' },
         { method: 'POST', path: '/items/{id}/stock', desc: 'Adjust with delta or set' },
         { method: 'GET', path: '/items/{id}/movements', desc: 'Stock history' },
         { method: 'GET', path: '/search?q=', desc: 'Search items and locations' }
+      ]
+    },
+    {
+      title: 'Stock & components',
+      icon: 'layers',
+      endpoints: [
+        { method: 'POST', path: '/items/{id}/transfer', desc: 'Move part of the stock between locations' },
+        { method: 'GET', path: '/items/{id}/components', desc: 'Components installed in this item' },
+        { method: 'POST', path: '/items/{id}/components', desc: 'Sign a component out to this item' },
+        {
+          method: 'POST',
+          path: '/items/{id}/components/{allocationId}/return',
+          desc: 'Return all or part to stock'
+        }
       ]
     },
     {
@@ -97,11 +112,25 @@ curl -X POST ${base}/items/<item-id>/stock \\
   ${authHeader}-H 'Content-Type: application/json' \\
   -d '{"delta":-5,"reason":"used"}'
 
-# 5. Upload a datasheet
+# 5. Split stock between locations
+curl -X POST ${base}/items/<item-id>/transfer \\
+  ${authHeader}-H 'Content-Type: application/json' \\
+  -d '{"from_location_id":"<location-id>","to_location_id":"<other-id>","quantity":20}'
+
+# 6. Install a component in another item, then return it
+curl -X POST ${base}/items/<host-id>/components \\
+  ${authHeader}-H 'Content-Type: application/json' \\
+  -d '{"component_item_id":"<item-id>","quantity":1}'
+
+curl -X POST ${base}/items/<host-id>/components/<allocation-id>/return \\
+  ${authHeader}-H 'Content-Type: application/json' \\
+  -d '{}'
+
+# 7. Upload a datasheet
 curl -X POST ${base}/attachments \\
   ${authHeader}-F 'file=@datasheet.pdf' -F 'item_id=<item-id>' -F 'kind=document'
 
-# 6. Log a service
+# 8. Log a service
 curl -X POST ${base}/items/<item-id>/service \\
   ${authHeader}-H 'Content-Type: application/json' \\
   -d '{"performed_at":"2026-05-12","notes":"Replaced the probe tips","cost":12.5}'`);
@@ -110,7 +139,7 @@ curl -X POST ${base}/items/<item-id>/service \\
   "name": "10kΩ resistor 0.25W",   // required
   "sku": "RES-10K-025",
   "category": "Resistors",
-  "quantity": 240,
+  "quantity": 240,                  // total across locations
   "unit": "pcs",
   "min_quantity": 50,
   "location_id": "uuid",
@@ -332,6 +361,8 @@ ${data.pricingEnabled ? `  "price": 0.02,\n  "currency": "${data.currency}",\n` 
           <li>IDs are UUIDs; use them exactly as returned.</li>
           <li>Lists paginate with <code class="inline">limit</code> and <code class="inline">offset</code>.</li>
           <li>Stock changes go through <code class="inline">/stock</code>, never a raw quantity PATCH.</li>
+          <li><code class="inline">quantity</code> is the total across locations; <code class="inline">stock</code> breaks it down per location.</li>
+          <li>Use <code class="inline">/transfer</code> to move part of a quantity, and <code class="inline">/components</code> to sign parts out to another item.</li>
           <li>Locations nest arbitrarily through <code class="inline">parent_id</code>.</li>
           <li>Quantities may be fractional — wire, filament, liquids.</li>
           <li>Deleting a location requires it to be empty.</li>

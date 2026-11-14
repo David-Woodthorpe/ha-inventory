@@ -22,22 +22,45 @@ function allRows(): LocationRow[] {
     .all() as unknown as LocationRow[];
 }
 
-function directItemCounts(): Map<string, number> {
+function itemLocationIndex(): {
+  counts: Map<string, number>;
+  itemIdsByLocation: Map<string, Set<string>>;
+} {
   const rows = db
     .prepare(
-      `SELECT location_id, COUNT(*) AS count
-       FROM items
-       WHERE archived = 0 AND location_id IS NOT NULL
-       GROUP BY location_id`
+      `SELECT DISTINCT item_id, location_id
+       FROM (
+         SELECT s.item_id AS item_id, s.location_id AS location_id
+         FROM item_stock s
+         JOIN items i ON i.id = s.item_id
+         WHERE i.archived = 0 AND s.location_id IS NOT NULL
+         UNION
+         SELECT i.id AS item_id, i.location_id AS location_id
+         FROM items i
+         WHERE i.archived = 0 AND i.location_id IS NOT NULL
+       )`
     )
-    .all() as unknown as Array<{ location_id: string; count: number }>;
-  return new Map(rows.map((row) => [row.location_id, Number(row.count)]));
+    .all() as unknown as Array<{ item_id: string; location_id: string }>;
+
+  const itemIdsByLocation = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const set = itemIdsByLocation.get(row.location_id) ?? new Set<string>();
+    set.add(row.item_id);
+    itemIdsByLocation.set(row.location_id, set);
+  }
+
+  return {
+    counts: new Map(
+      Array.from(itemIdsByLocation, ([locationId, itemIds]) => [locationId, itemIds.size])
+    ),
+    itemIdsByLocation
+  };
 }
 
 export function getLocations(): Location[] {
   const rows = allRows();
   const byId = new Map(rows.map((row) => [row.id, row]));
-  const counts = directItemCounts();
+  const { counts, itemIdsByLocation } = itemLocationIndex();
   const pathCache = new Map<string, { ids: string[]; names: string[] }>();
 
   function pathOf(id: string, seen = new Set<string>()): { ids: string[]; names: string[] } {
@@ -58,12 +81,15 @@ export function getLocations(): Location[] {
     if (row.parent_id) childCounts.set(row.parent_id, (childCounts.get(row.parent_id) ?? 0) + 1);
   }
 
-  const totals = new Map<string, number>();
-  for (const row of rows) {
-    const direct = counts.get(row.id) ?? 0;
-    const path = pathOf(row.id);
-    for (const ancestorId of path.ids) {
-      totals.set(ancestorId, (totals.get(ancestorId) ?? 0) + direct);
+  const totalSets = new Map<string, Set<string>>();
+  for (const [locationId, itemIds] of itemIdsByLocation) {
+    const path = pathOf(locationId);
+    for (const itemId of itemIds) {
+      for (const ancestorId of path.ids) {
+        const set = totalSets.get(ancestorId) ?? new Set<string>();
+        set.add(itemId);
+        totalSets.set(ancestorId, set);
+      }
     }
   }
 
@@ -81,7 +107,7 @@ export function getLocations(): Location[] {
       path_label: path.names.join(' / '),
       depth: path.names.length - 1,
       direct_item_count: counts.get(row.id) ?? 0,
-      total_item_count: totals.get(row.id) ?? 0,
+      total_item_count: totalSets.get(row.id)?.size ?? 0,
       child_count: childCounts.get(row.id) ?? 0,
       ha_enabled: Boolean(row.ha_enabled),
       created_at: row.created_at,

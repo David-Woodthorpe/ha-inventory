@@ -172,6 +172,7 @@
             min="0"
             step="any"
           />
+          <span class="hint">Total across all locations.</span>
         </div>
 
         <div class="field">
@@ -209,6 +210,9 @@
         <div class="field">
           <label class="label" for="location_id">Location</label>
           <LocationSelect locations={options.locations} value={values.location_id} />
+          <span class="hint">
+            Changing the location moves all of this item's stock here. Use Transfer on the item page to split it across locations.
+          </span>
         </div>
 
         <div class="field full">

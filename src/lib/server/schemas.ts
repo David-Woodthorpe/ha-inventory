@@ -94,12 +94,45 @@ export const stockAdjustSchema = z
   .object({
     delta: optionalNumber(Number.NEGATIVE_INFINITY),
     set: optionalNumber(0),
+    location_id: optionalId,
     reason: optionalText(80),
     note: optionalText(1000)
   })
   .refine((value) => (value.delta === undefined) !== (value.set === undefined), {
     message: 'Provide exactly one of "delta" or "set"'
   });
+
+const requiredId = z.string().trim().min(1, 'Required').max(100);
+const nullableId = z.preprocess(emptyToNull, z.string().trim().max(100).nullable());
+const positiveQuantity = z.coerce.number().positive('Must be greater than zero');
+
+export const stockTransferSchema = z
+  .object({
+    from_location_id: nullableId,
+    to_location_id: optionalId,
+    quantity: positiveQuantity,
+    note: optionalText(1000)
+  })
+  .refine((value) => (value.from_location_id ?? null) !== (value.to_location_id ?? null), {
+    message: 'Source and destination locations must be different'
+  });
+
+export const componentSignOutSchema = z.object({
+  component_item_id: requiredId,
+  host_item_id: requiredId,
+  quantity: positiveQuantity,
+  source_location_id: optionalId,
+  note: optionalText(1000)
+});
+
+export const allocationReturnSchema = z.object({
+  quantity: z.preprocess(emptyToUndefined, z.coerce.number().positive().optional()),
+  note: optionalText(1000)
+});
+
+export type StockTransferInput = z.infer<typeof stockTransferSchema>;
+export type ComponentSignOutInput = z.infer<typeof componentSignOutSchema>;
+export type AllocationReturnInput = z.infer<typeof allocationReturnSchema>;
 
 const serviceRecordFields = {
   performed_at: requiredDate,

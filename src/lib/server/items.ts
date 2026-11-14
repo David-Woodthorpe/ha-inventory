@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
-import type { Attachment, Item, ItemDetail, ItemListParams, ItemListResult } from '$lib/types';
+import type {
+  Attachment,
+  Item,
+  ItemDetail,
+  ItemListParams,
+  ItemListResult,
+  ItemRef
+} from '$lib/types';
 import { db, nowIso, transaction } from './db';
 import { defaultCurrency, pricingEnabled, uploadDir } from './config';
 import { ApiError, conflict, notFound } from './errors';
@@ -23,6 +30,18 @@ import {
   type ItemRow
 } from './serialize';
 import { deleteServiceCalendarEvent, requestServiceCalendarSync } from './calendar';
+import {
+  addStock,
+  adjustItemStock,
+  ensureItemCanBeDeleted,
+  getAllAllocations,
+  getComponentHosts,
+  getHostComponents,
+  getItemMovements,
+  getItemStock,
+  listAllStock,
+  moveAllStock
+} from './stock';
 
 type SqlValue = string | number | null;
 
@@ -129,8 +148,15 @@ export function listItems(params: ItemListParams = {}): ItemListResult {
     if (ids.length === 0) {
       where.push('0 = 1');
     } else {
-      where.push(`items.location_id IN (${ids.map(() => '?').join(', ')})`);
-      args.push(...ids);
+      const placeholders = ids.map(() => '?').join(', ');
+      where.push(`(
+        items.location_id IN (${placeholders}) OR
+        EXISTS (
+          SELECT 1 FROM item_stock s
+          WHERE s.item_id = items.id AND s.location_id IN (${placeholders})
+        )
+      )`);
+      args.push(...ids, ...ids);
     }
   }
 
@@ -175,9 +201,6 @@ export function listItems(params: ItemListParams = {}): ItemListResult {
 export function getItem(id: string): ItemDetail {
   const row = getItemRow(id);
   const ctx = hydrateContext([row.id]);
-  const movements = db
-    .prepare('SELECT * FROM stock_movements WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 100')
-    .all(id) as unknown as Array<Record<string, unknown>>;
   const serviceRows = db
     .prepare(
       'SELECT * FROM service_records WHERE item_id = ? ORDER BY performed_at DESC, created_at DESC, rowid DESC'
@@ -207,7 +230,10 @@ export function getItem(id: string): ItemDetail {
 
   return {
     ...toItem(row, ctx),
-    movements: movements.map(toMovement),
+    stock: getItemStock(id),
+    components: getHostComponents(id),
+    assigned_to: getComponentHosts(id),
+    movements: getItemMovements(id),
     service_records: serviceRows.map((serviceRow) =>
       toServiceRecord(serviceRow, attachmentsByRecord.get(String(serviceRow.id)) ?? [])
     )
@@ -253,13 +279,6 @@ function serializeValue(column: (typeof itemColumns)[number], value: unknown): S
   if (typeof value === 'number') return value;
   if (value === undefined || value === null) return null;
   return String(value);
-}
-
-function addMovement(itemId: string, delta: number, reason: string | null, note: string | null): void {
-  if (delta === 0) return;
-  db.prepare(
-    'INSERT INTO stock_movements (id, item_id, delta, reason, note, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(randomUUID(), itemId, delta, reason, note, nowIso());
 }
 
 export function createItem(input: unknown): ItemDetail {
@@ -308,7 +327,12 @@ export function createItem(input: unknown): ItemDetail {
         service_notes, created_at, updated_at
       ) VALUES (${values.map(() => '?').join(', ')})`
     ).run(...values);
-    if (quantity > 0) addMovement(id, quantity, 'initial', 'Initial stock level');
+    if (quantity > 0) {
+      addStock(id, data.location_id ?? null, quantity, {
+        reason: 'initial',
+        note: 'Initial stock level'
+      });
+    }
   });
 
   if (data.service_interval_months || data.service_next_due) requestServiceCalendarSync(id);
@@ -339,13 +363,12 @@ export function updateItem(id: string, input: unknown): ItemDetail {
   const values: SqlValue[] = [];
   for (const column of itemColumns) {
     if (!(column in data)) continue;
+    // Quantity and primary location are derived from the stock lots below.
+    if (column === 'quantity' || column === 'location_id') continue;
     const value = data[column];
     if (column === 'tags') {
       fields.push('tags = ?');
       values.push(JSON.stringify(normalizeTags(value as string[])));
-    } else if (column === 'quantity') {
-      fields.push('quantity = ?');
-      values.push(Number(value));
     } else if (column === 'unit') {
       fields.push('unit = ?');
       values.push(String(value || 'pcs'));
@@ -359,20 +382,33 @@ export function updateItem(id: string, input: unknown): ItemDetail {
   }
 
   const quantityChanged = 'quantity' in data && Number(data.quantity) !== Number(existing.quantity);
-  if (!fields.length) return getItem(id);
+  const locationChanged =
+    'location_id' in data &&
+    ((data.location_id as string | null) ?? null) !== (existing.location_id ?? null);
+  if (!fields.length && !quantityChanged && !locationChanged) return getItem(id);
+
+  const targetLocation = 'location_id' in data
+    ? ((data.location_id as string | null) ?? null)
+    : (existing.location_id ?? null);
 
   fields.push('updated_at = ?');
   values.push(nowIso(), id);
 
   transaction(() => {
     db.prepare(`UPDATE items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    if (locationChanged) {
+      moveAllStock(id, targetLocation, {
+        reason: 'moved',
+        note: 'Location changed while editing the item'
+      });
+    }
     if (quantityChanged) {
-      addMovement(
-        id,
-        Number(data.quantity) - Number(existing.quantity),
-        'correction',
-        'Quantity changed while editing the item'
-      );
+      adjustItemStock(id, {
+        set: Number(data.quantity),
+        location_id: targetLocation,
+        reason: 'correction',
+        note: 'Quantity changed while editing the item'
+      });
     }
   });
 
@@ -392,6 +428,7 @@ export function updateItem(id: string, input: unknown): ItemDetail {
 
 export function deleteItem(id: string): void {
   getItemRow(id);
+  ensureItemCanBeDeleted(id);
   // Remove the calendar event before the row (and its calendar mapping) is
   // deleted. The function reads the mapping synchronously, then talks to Home
   // Assistant in the background.
@@ -411,24 +448,14 @@ export function deleteItem(id: string): void {
 
 export function adjustStock(id: string, input: unknown): ItemDetail {
   const data = parseWith(stockAdjustSchema, input);
-  const existing = getItemRow(id);
-  const current = Number(existing.quantity);
-  const next = data.set !== undefined ? data.set : current + (data.delta ?? 0);
-  const rounded = Math.round((next + Number.EPSILON) * 1e6) / 1e6;
-  if (rounded < 0) {
-    throw conflict(`Not enough stock: ${current} ${existing.unit} on hand, tried to remove ${Math.abs(data.delta ?? 0)}`, {
-      current_quantity: current,
-      requested_quantity: rounded,
-      unit: existing.unit
-    });
-  }
-  const delta = Math.round((rounded - current + Number.EPSILON) * 1e6) / 1e6;
-
-  transaction(() => {
-    db.prepare('UPDATE items SET quantity = ?, updated_at = ? WHERE id = ?').run(rounded, nowIso(), id);
-    addMovement(id, delta, data.reason ?? null, data.note ?? null);
+  getItemRow(id);
+  adjustItemStock(id, {
+    delta: data.delta,
+    set: data.set,
+    location_id: data.location_id,
+    reason: data.reason ?? null,
+    note: data.note ?? null
   });
-
   return getItem(id);
 }
 
@@ -460,6 +487,8 @@ export function bulkCreateItems(inputs: unknown[]): BulkResult {
 
 export function exportAll() {
   const items = listItems({ include_archived: true, limit: 100000, sort: 'created_at', order: 'asc' }).items;
+  const locations = getLocations();
+  const locationById = new Map(locations.map((location) => [location.id, location]));
   const attachments = (
     db.prepare('SELECT * FROM attachments ORDER BY created_at ASC').all() as unknown as Array<
       Record<string, unknown>
@@ -469,7 +498,7 @@ export function exportAll() {
     db.prepare('SELECT * FROM stock_movements ORDER BY created_at ASC').all() as unknown as Array<
       Record<string, unknown>
     >
-  ).map(toMovement);
+  ).map((row) => toMovement(row, locationById));
   const attachmentsByRecord = new Map<string, Attachment[]>();
   for (const attachment of attachments) {
     if (!attachment.service_record_id) continue;
@@ -484,9 +513,11 @@ export function exportAll() {
   ).map((row) => toServiceRecord(row, attachmentsByRecord.get(String(row.id)) ?? []));
   return {
     exported_at: nowIso(),
-    schema_version: 2,
-    locations: getLocations(),
+    schema_version: 3,
+    locations,
     items,
+    stock: listAllStock(),
+    allocations: getAllAllocations(),
     attachments,
     movements,
     service_records: serviceRecords
@@ -524,6 +555,23 @@ export function getItemAttachments(id: string): Attachment[] {
     )
     .all(id) as unknown as Array<Record<string, unknown>>;
   return rows.map(toAttachment);
+}
+
+/** Lightweight item list for component and host pickers. */
+export function listItemChoices(): ItemRef[] {
+  const rows = db
+    .prepare(
+      `SELECT id, name, sku, unit FROM items
+       WHERE archived = 0
+       ORDER BY name COLLATE NOCASE ASC`
+    )
+    .all() as unknown as Array<{ id: string; name: string; sku: string | null; unit: string }>;
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    sku: row.sku,
+    unit: row.unit
+  }));
 }
 
 export type { Item };

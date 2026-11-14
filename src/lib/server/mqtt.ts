@@ -13,6 +13,7 @@ import {
 } from './config';
 import { listItems } from './items';
 import { getLocations } from './locations';
+import { listAllStock } from './stock';
 
 /**
  * Home Assistant MQTT Discovery.
@@ -346,7 +347,41 @@ function markdownTable(rows: Array<Record<string, unknown>>): string {
   return lines.join('\n');
 }
 
-function itemAttributes(item: Item, base: Location | null): Record<string, unknown> {
+type StockIndex = Map<
+  string,
+  Array<{ location_id: string | null; location: string | null; quantity: number }>
+>;
+
+/**
+ * Per-location stock lots keyed by item. The item quantity stays the total and
+ * the item location stays the primary (largest) lot, so device grouping is
+ * unchanged; this only adds the breakdown as an attribute.
+ */
+function buildStockIndex(): StockIndex {
+  const index: StockIndex = new Map();
+  for (const lot of listAllStock()) {
+    const list = index.get(lot.item_id) ?? [];
+    list.push({
+      location_id: lot.location_id,
+      location: lot.location?.path_label ?? null,
+      quantity: lot.quantity
+    });
+    index.set(lot.item_id, list);
+  }
+  for (const list of index.values()) {
+    list.sort(
+      (a, b) =>
+        (a.location ?? '\uffff').localeCompare(b.location ?? '\uffff') || b.quantity - a.quantity
+    );
+  }
+  return index;
+}
+
+function itemAttributes(
+  item: Item,
+  base: Location | null,
+  stock: StockIndex
+): Record<string, unknown> {
   return {
     name: item.name,
     sku: item.sku,
@@ -357,6 +392,7 @@ function itemAttributes(item: Item, base: Location | null): Record<string, unkno
     low_stock: item.low_stock,
     location: relativeLocation(item, base),
     location_id: item.location_id,
+    stock: stock.get(item.id) ?? [],
     updated_at: item.updated_at
   };
 }
@@ -385,6 +421,7 @@ function buildDiscovery(allLocations: Location[], allItems: Item[]) {
   const configs = new Map<string, string>();
   const states = new Map<string, string>();
   const allLocationsById = new Map(allLocations.map((location) => [location.id, location]));
+  const stock = buildStockIndex();
 
   // A location is published only when it and every ancestor are enabled, so
   // turning off a room also hides its sublocations.
@@ -417,7 +454,7 @@ function buildDiscovery(allLocations: Location[], allItems: Item[]) {
     total_units: roundQuantity(items.reduce((sum, item) => sum + item.quantity, 0)),
     low_stock: lowStockItems.length,
     location_count: locations.length,
-    low_stock_items: lowStockItems.map((item) => itemAttributes(item, null))
+    low_stock_items: lowStockItems.map((item) => itemAttributes(item, null, stock))
   };
   states.set(SUMMARY_STATE_TOPIC, JSON.stringify(summaryState));
 
@@ -460,7 +497,7 @@ function buildDiscovery(allLocations: Location[], allItems: Item[]) {
     const contents = (itemsByLocation.get(location.id) ?? []).sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
     );
-    const rows = contents.map((item) => itemAttributes(item, location));
+    const rows = contents.map((item) => itemAttributes(item, location, stock));
     const lowStock = rows.filter((row) => row.low_stock).length;
     const totalQuantity = contents.reduce((sum, item) => sum + item.quantity, 0);
     const directItemCount = contents.filter((item) => item.location_id === location.id).length;
@@ -510,6 +547,7 @@ function buildDiscovery(allLocations: Location[], allItems: Item[]) {
         category: item.category,
         location: item.location?.path_label ?? null,
         location_id: item.location_id,
+        stock: stock.get(item.id) ?? [],
         updated_at: item.updated_at
       })
     );

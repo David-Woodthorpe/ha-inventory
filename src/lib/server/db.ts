@@ -119,6 +119,72 @@ const migrations: string[] = [
     due_date TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+  `,
+  // v4 — stock split across locations and components installed in other items
+  //
+  // items.quantity stays the cached total and items.location_id the primary
+  // location, so existing queries, sorting, stats and Home Assistant grouping
+  // keep working. The item_stock lots are the authoritative per-location
+  // breakdown. Each item starts with one lot matching its current location and
+  // quantity.
+  `
+  CREATE TABLE item_stock (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    location_id TEXT REFERENCES locations(id) ON DELETE CASCADE,
+    quantity REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_item_stock_item ON item_stock(item_id);
+  CREATE INDEX idx_item_stock_location ON item_stock(location_id);
+  CREATE UNIQUE INDEX idx_item_stock_item_location ON item_stock(item_id, COALESCE(location_id, ''));
+
+  INSERT INTO item_stock (id, item_id, location_id, quantity, created_at, updated_at)
+  SELECT
+    lower(
+      hex(randomblob(4)) || '-' ||
+      hex(randomblob(2)) || '-' ||
+      hex(randomblob(2)) || '-' ||
+      hex(randomblob(2)) || '-' ||
+      hex(randomblob(6))
+    ),
+    id, location_id, quantity, created_at, updated_at
+  FROM items
+  WHERE quantity <> 0;
+
+  CREATE TABLE item_allocations (
+    id TEXT PRIMARY KEY,
+    component_item_id TEXT NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+    host_item_id TEXT NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+    quantity REAL NOT NULL,
+    source_location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    CHECK (component_item_id <> host_item_id),
+    CHECK (quantity > 0)
+  );
+  CREATE INDEX idx_item_allocations_host ON item_allocations(host_item_id);
+  CREATE INDEX idx_item_allocations_component ON item_allocations(component_item_id);
+
+  ALTER TABLE stock_movements ADD COLUMN location_id TEXT REFERENCES locations(id) ON DELETE SET NULL;
+  ALTER TABLE stock_movements ADD COLUMN to_location_id TEXT REFERENCES locations(id) ON DELETE SET NULL;
+  `,
+  // v5 — normalise stock lot ids created by the v4 backfill
+  //
+  // The first version of the v4 backfill generated 32-character hex ids while
+  // the rest of the application uses UUIDs. Rewrite them in UUID text form so
+  // every id returned by the API and included in exports is a valid UUID.
+  `
+  UPDATE item_stock
+  SET id =
+    substr(id, 1, 8) || '-' ||
+    substr(id, 9, 4) || '-' ||
+    substr(id, 13, 4) || '-' ||
+    substr(id, 17, 4) || '-' ||
+    substr(id, 21, 12)
+  WHERE length(id) = 32 AND instr(id, '-') = 0;
   `
 ];
 
@@ -195,8 +261,24 @@ export function reopenDatabase(): void {
   db = openDatabase();
 }
 
+let transactionDepth = 0;
+
+/**
+ * Run a function inside a transaction. Nested calls join the outer transaction
+ * so small helpers can stay atomic when composed by callers.
+ */
 export function transaction<T>(fn: () => T): T {
+  if (transactionDepth > 0) {
+    transactionDepth += 1;
+    try {
+      return fn();
+    } finally {
+      transactionDepth -= 1;
+    }
+  }
+
   db.exec('BEGIN IMMEDIATE');
+  transactionDepth = 1;
   try {
     const result = fn();
     db.exec('COMMIT');
@@ -208,6 +290,8 @@ export function transaction<T>(fn: () => T): T {
       // ignore rollback failures
     }
     throw error;
+  } finally {
+    transactionDepth = 0;
   }
 }
 

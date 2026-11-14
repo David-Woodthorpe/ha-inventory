@@ -8,6 +8,8 @@ const location = ref('Location');
 const item = ref('Item');
 const itemDetail = ref('ItemDetail');
 const serviceRecord = ref('ServiceRecord');
+const stockLot = ref('ItemStockLot');
+const allocation = ref('ItemAllocation');
 
 const json = (schema: unknown) => ({ 'application/json': { schema } });
 
@@ -29,6 +31,7 @@ export const openapi = {
   servers: [{ url: '/api/v1', description: 'This server' }],
   tags: [
     { name: 'Items', description: 'Parts, components, tools and supplies' },
+    { name: 'Stock', description: 'Per-location stock and components signed out to other items' },
     { name: 'Locations', description: 'Nested storage locations' },
     { name: 'Service', description: 'Optional maintenance history and recurring service schedules' },
     { name: 'Attachments', description: 'Photos, manuals and other documents' },
@@ -157,10 +160,22 @@ export const openapi = {
     },
     '/items/{id}/stock': {
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Stock'],
+        summary: 'Per-location stock breakdown',
+        responses: {
+          '200': {
+            description: 'Stock lots for the item',
+            content: json({ type: 'object', properties: { data: { type: 'array', items: stockLot } } })
+          },
+          '404': errorResponses['404']
+        }
+      },
       post: {
-        tags: ['Items'],
+        tags: ['Stock'],
         summary: 'Adjust stock with a delta or absolute value',
-        description: 'Send exactly one of delta or set. Negative resulting quantities are rejected with 409.',
+        description:
+          'Send exactly one of delta or set. An optional location_id targets a specific lot; positive changes land there and negative changes come from there first. Negative resulting quantities are rejected with 409.',
         requestBody: {
           required: true,
           content: json({
@@ -168,6 +183,7 @@ export const openapi = {
             properties: {
               delta: { type: 'number', description: 'Amount to add (positive) or remove (negative)' },
               set: { type: 'number', minimum: 0, description: 'New absolute quantity' },
+              location_id: { type: 'string', format: 'uuid', nullable: true, description: 'Optional stock lot to adjust first' },
               reason: { type: 'string', example: 'purchase' },
               note: { type: 'string', example: 'Order #1234' }
             }
@@ -175,6 +191,95 @@ export const openapi = {
         },
         responses: {
           '200': { description: 'Updated item', content: json({ type: 'object', properties: { data: itemDetail } }) },
+          ...errorResponses
+        }
+      }
+    },
+    '/items/{id}/transfer': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      post: {
+        tags: ['Stock'],
+        summary: 'Transfer part of an item between locations',
+        description:
+          'Moves a quantity from one stock lot to another without changing the item total. The destination may be null for unassigned stock. The response is the updated item detail.',
+        requestBody: {
+          required: true,
+          content: json({
+            type: 'object',
+            required: ['from_location_id', 'quantity'],
+            properties: {
+              from_location_id: { type: 'string', format: 'uuid', nullable: true },
+              to_location_id: { type: 'string', format: 'uuid', nullable: true },
+              quantity: { type: 'number', exclusiveMinimum: 0 },
+              note: { type: 'string', nullable: true }
+            }
+          })
+        },
+        responses: {
+          '200': { description: 'Updated item', content: json({ type: 'object', properties: { data: itemDetail } }) },
+          ...errorResponses
+        }
+      }
+    },
+    '/items/{id}/components': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Stock'],
+        summary: 'Components installed in this item',
+        responses: {
+          '200': {
+            description: 'Active allocations where this item is the host',
+            content: json({ type: 'object', properties: { data: { type: 'array', items: allocation } } })
+          },
+          '404': errorResponses['404']
+        }
+      },
+      post: {
+        tags: ['Stock'],
+        summary: 'Sign a component out to this item',
+        description:
+          'Removes stock from the component immediately and records it as installed in this host item. Omit source_location_id to use the location holding the most stock. The response contains the allocation and the updated host item.',
+        requestBody: {
+          required: true,
+          content: json({
+            type: 'object',
+            required: ['component_item_id', 'quantity'],
+            properties: {
+              component_item_id: { type: 'string', format: 'uuid' },
+              quantity: { type: 'number', exclusiveMinimum: 0 },
+              source_location_id: { type: 'string', format: 'uuid', nullable: true },
+              note: { type: 'string', nullable: true }
+            }
+          })
+        },
+        responses: {
+          '201': { description: 'Component signed out', content: json({ type: 'object' }) },
+          ...errorResponses
+        }
+      }
+    },
+    '/items/{id}/components/{allocationId}/return': {
+      parameters: [
+        { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'allocationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+      ],
+      post: {
+        tags: ['Stock'],
+        summary: 'Return a signed-out component to stock',
+        description:
+          'Returns all or part of an allocation to its source location. Omit quantity to return everything. Returns null when the allocation is fully returned.',
+        requestBody: {
+          required: false,
+          content: json({
+            type: 'object',
+            properties: {
+              quantity: { type: 'number', exclusiveMinimum: 0 },
+              note: { type: 'string', nullable: true }
+            }
+          })
+        },
+        responses: {
+          '200': { description: 'Remaining allocation, or null', content: json({ type: 'object' }) },
           ...errorResponses
         }
       }
@@ -617,7 +722,62 @@ export const openapi = {
           delta: { type: 'number' },
           reason: { type: 'string', nullable: true },
           note: { type: 'string', nullable: true },
+          location_id: { type: 'string', format: 'uuid', nullable: true },
+          location: { allOf: [ref('LocationRef')], nullable: true },
+          to_location_id: {
+            type: 'string',
+            format: 'uuid',
+            nullable: true,
+            description: 'Destination for a transfer movement'
+          },
+          to_location: { allOf: [ref('LocationRef')], nullable: true },
           created_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      ItemRef: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          sku: { type: 'string', nullable: true },
+          unit: { type: 'string' }
+        }
+      },
+      ItemStockLot: {
+        type: 'object',
+        description:
+          'A quantity of one item held at one location. The item quantity is the sum of its lots and its primary location is the largest lot.',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          item_id: { type: 'string', format: 'uuid' },
+          location_id: {
+            type: 'string',
+            format: 'uuid',
+            nullable: true,
+            description: 'Null means unassigned stock'
+          },
+          location: { allOf: [ref('LocationRef')], nullable: true },
+          quantity: { type: 'number' },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      ItemAllocation: {
+        type: 'object',
+        description:
+          'A component signed out to a host item. The component stock has already been removed; returning the allocation puts it back.',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          component_item_id: { type: 'string', format: 'uuid' },
+          component: ref('ItemRef'),
+          host_item_id: { type: 'string', format: 'uuid' },
+          host: ref('ItemRef'),
+          quantity: { type: 'number' },
+          source_location_id: { type: 'string', format: 'uuid', nullable: true },
+          source_location: { allOf: [ref('LocationRef')], nullable: true },
+          note: { type: 'string', nullable: true },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' }
         }
       },
       ItemInput: {
@@ -753,6 +913,21 @@ export const openapi = {
           {
             type: 'object',
             properties: {
+              stock: {
+                type: 'array',
+                items: stockLot,
+                description: 'Per-location stock lots, sorted by location path'
+              },
+              components: {
+                type: 'array',
+                items: allocation,
+                description: 'Components installed in this item'
+              },
+              assigned_to: {
+                type: 'array',
+                items: allocation,
+                description: 'Host items this item is signed out to'
+              },
               movements: { type: 'array', items: ref('StockMovement') },
               service_records: { type: 'array', items: serviceRecord }
             }

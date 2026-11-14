@@ -25,6 +25,10 @@
   const currentPhoto = $derived(photos[Math.min(activePhoto, photos.length - 1)] ?? null);
   const customEntries = $derived(Object.entries(item.custom_fields));
   const qtyClass = $derived(quantityClass(item.quantity, item.low_stock));
+  const stockedLots = $derived(item.stock.filter((lot) => lot.quantity > 0));
+  const componentChoices = $derived(data.items.filter((entry) => entry.id !== item.id));
+  const locationName = (lot: { location: { path_label: string } | null }) =>
+    lot.location?.path_label ?? 'Unassigned';
 
   function confirmDelete(event: SubmitEvent) {
     if (!confirm(`Delete “${item.name}” and all of its files? This cannot be undone.`)) {
@@ -640,6 +644,18 @@
               </select>
             </div>
           </div>
+          {#if item.stock.length > 0}
+            <div class="field">
+              <label class="label" for="adjust-location">Location</label>
+              <select id="adjust-location" class="select" name="location_id">
+                <option value="">Primary location</option>
+                {#each item.stock as lot (lot.id)}
+                  <option value={lot.location_id ?? ''}>{locationName(lot)}</option>
+                {/each}
+              </select>
+              <span class="hint">Positive changes go here first; negative changes come from here first.</span>
+            </div>
+          {/if}
           <input class="input" name="note" placeholder="Note (optional)" maxlength="1000" />
           <button class="btn btn-primary" type="submit">
             <Icon name="check" size={15} />
@@ -648,6 +664,206 @@
         </form>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Storage by location</h2>
+        <span class="hint">{plural(item.stock.length, 'location')}</span>
+      </div>
+      <div class="card-body">
+        {#if item.stock.length}
+          <div class="stock-lots">
+            {#each item.stock as lot (lot.id)}
+              <div class="stock-lot">
+                <span class="stock-lot-name">
+                  {#if lot.location}
+                    <a class="link" href={h(`/locations/${lot.location.id}`)}>{lot.location.path_label}</a>
+                  {:else}
+                    <span class="faint">Unassigned</span>
+                  {/if}
+                </span>
+                <span class="stock-lot-qty">{formatNumber(lot.quantity)} {item.unit}</span>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="small muted">No stock recorded in any location yet.</p>
+        {/if}
+
+        {#if stockedLots.length > 0 && data.locations.length > 0}
+          <div class="divider"></div>
+          <form method="POST" action="?/transfer" class="stack-sm">
+            <div class="form-grid" style="gap: 10px;">
+              <div class="field">
+                <label class="label" for="transfer-from">From</label>
+                <select id="transfer-from" class="select" name="from_location_id">
+                  {#each stockedLots as lot (lot.id)}
+                    <option value={lot.location_id ?? ''}>
+                      {locationName(lot)} ({formatNumber(lot.quantity)})
+                    </option>
+                  {/each}
+                </select>
+              </div>
+              <div class="field">
+                <label class="label" for="transfer-to">To</label>
+                <select id="transfer-to" class="select" name="to_location_id">
+                  {#each data.locations as location (location.id)}
+                    <option value={location.id}>{location.path_label}</option>
+                  {/each}
+                </select>
+              </div>
+            </div>
+            <div class="form-grid" style="gap: 10px;">
+              <div class="field">
+                <label class="label" for="transfer-qty">Quantity</label>
+                <input
+                  id="transfer-qty"
+                  class="input"
+                  type="number"
+                  name="quantity"
+                  min="0.000001"
+                  step="any"
+                  required
+                />
+              </div>
+              <div class="field">
+                <label class="label" for="transfer-note">Note</label>
+                <input id="transfer-note" class="input" name="note" maxlength="1000" placeholder="Optional" />
+              </div>
+            </div>
+            <button class="btn btn-primary" type="submit">
+              <Icon name="arrowRight" size={15} />
+              Transfer stock
+            </button>
+          </form>
+        {/if}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Installed components</h2>
+        <span class="hint">{plural(item.components.length, 'component')}</span>
+      </div>
+      <div class="card-body">
+        {#if item.components.length}
+          <div class="component-list">
+            {#each item.components as allocation (allocation.id)}
+              <div class="component-row">
+                <div class="component-main">
+                  <a class="link" href={h(`/items/${allocation.component_item_id}`)}>
+                    {allocation.component.name}
+                  </a>
+                  <span class="small muted">
+                    {formatNumber(allocation.quantity)} {allocation.component.unit}
+                    {#if allocation.source_location}
+                      · from {allocation.source_location.path_label}
+                    {/if}
+                    {#if allocation.note}· {allocation.note}{/if}
+                  </span>
+                </div>
+                <form method="POST" action="?/returnComponent" class="component-return">
+                  <input type="hidden" name="allocation_id" value={allocation.id} />
+                  <input
+                    class="input"
+                    type="number"
+                    name="quantity"
+                    min="0.000001"
+                    max={allocation.quantity}
+                    step="any"
+                    value={allocation.quantity}
+                    aria-label="Quantity to return"
+                  />
+                  <button class="btn btn-sm" type="submit">Return</button>
+                </form>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="small muted">
+            No components are installed in this item. Sign parts out below to record what is
+            fitted or consumed.
+          </p>
+        {/if}
+      </div>
+      {#if componentChoices.length > 0}
+        <div class="card-foot">
+          <details class="service-details">
+            <summary class="btn btn-sm btn-primary">
+              <Icon name="plus" size={14} />
+              Sign out a component
+            </summary>
+            <form method="POST" action="?/signOut" class="stack-sm service-edit-form">
+              <div class="field">
+                <label class="label" for="component-item">Component</label>
+                <select id="component-item" class="select" name="component_item_id" required>
+                  {#each componentChoices as choice (choice.id)}
+                    <option value={choice.id}>
+                      {choice.name}{choice.sku ? ` (${choice.sku})` : ''}
+                    </option>
+                  {/each}
+                </select>
+              </div>
+              <div class="form-grid" style="gap: 10px;">
+                <div class="field">
+                  <label class="label" for="component-qty">Quantity</label>
+                  <input
+                    id="component-qty"
+                    class="input"
+                    type="number"
+                    name="quantity"
+                    min="0.000001"
+                    step="any"
+                    value="1"
+                    required
+                  />
+                </div>
+                <div class="field">
+                  <label class="label" for="component-source">Source location</label>
+                  <select id="component-source" class="select" name="source_location_id">
+                    <option value="">Automatic</option>
+                    {#each data.locations as location (location.id)}
+                      <option value={location.id}>{location.path_label}</option>
+                    {/each}
+                  </select>
+                </div>
+              </div>
+              <input class="input" name="note" maxlength="1000" placeholder="Note (optional)" />
+              <button class="btn btn-primary" type="submit">
+                <Icon name="check" size={15} />
+                Sign out component
+              </button>
+            </form>
+          </details>
+        </div>
+      {/if}
+    </div>
+
+    {#if item.assigned_to.length}
+      <div class="card">
+        <div class="card-head">
+          <h2>Signed out to</h2>
+          <span class="hint">{plural(item.assigned_to.length, 'item')}</span>
+        </div>
+        <div class="card-body">
+          <div class="component-list">
+            {#each item.assigned_to as allocation (allocation.id)}
+              <div class="component-row">
+                <div class="component-main">
+                  <a class="link" href={h(`/items/${allocation.host_item_id}`)}>
+                    {allocation.host.name}
+                  </a>
+                  <span class="small muted">
+                    {formatNumber(allocation.quantity)} {item.unit}
+                    {#if allocation.note}· {allocation.note}{/if}
+                  </span>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <div class="card">
       <div class="card-head">
@@ -780,5 +996,67 @@
 
   .service-overdue {
     color: var(--danger);
+  }
+
+  .stock-lots {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .stock-lot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stock-lot:last-child {
+    border-bottom: none;
+  }
+
+  .stock-lot-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .stock-lot-qty {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-soft);
+  }
+
+  .component-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .component-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .component-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .component-return {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+  }
+
+  .component-return .input {
+    width: 7.5rem;
   }
 </style>

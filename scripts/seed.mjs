@@ -393,6 +393,18 @@ const itemSpec = [
     price: 7.5,
     tags: ['thermal'],
     movement: { delta: -1, reason: 'used', note: 'Repasted laptop' }
+  },
+  {
+    name: 'Bench test rig',
+    sku: 'RIG-BENCH-01',
+    category: 'Tools',
+    description: 'Breadboard rig with a dev board and a removable mounting plate.',
+    quantity: 1,
+    unit: 'pcs',
+    min_quantity: 0,
+    location: 'Workshop / Shelf A',
+    tags: ['test-equipment', 'rig'],
+    custom_fields: { board: 'ESP32 DevKitC' }
   }
 ];
 
@@ -435,6 +447,66 @@ async function ensureItems(locations) {
   }
 
   return created;
+}
+
+// ── Split stock and installed components ────────────────────────────────────
+
+async function ensureStockExamples(locations, items) {
+  let changes = 0;
+
+  // Keep most of the resistors in the desk drawers and a spare reel in the
+  // parts cabinet, demonstrating one SKU spread over two locations.
+  const resistor = items.get('RES-10K-025');
+  const spareDrawer = locations.get('Workshop / Parts cabinet / Drawer C1');
+  if (resistor && spareDrawer) {
+    const { data: detail } = await api(`/items/${resistor.id}`);
+    const alreadySplit = detail.stock.some((lot) => lot.location_id === spareDrawer.id);
+    if (!alreadySplit) {
+      const source = detail.stock.find((lot) => lot.quantity > 40) ?? detail.stock[0];
+      if (source) {
+        await api(`/items/${resistor.id}/transfer`, {
+          method: 'POST',
+          body: JSON.stringify({
+            from_location_id: source.location_id,
+            to_location_id: spareDrawer.id,
+            quantity: 40,
+            note: 'Spare reel kept in the parts cabinet'
+          })
+        });
+        log('~', `split ${resistor.name} across two drawers`);
+        changes += 1;
+      }
+    }
+  }
+
+  // Fit a dev board and standoffs to the bench test rig. Signing out removes
+  // their stock immediately; the host item records what is installed.
+  const host = items.get('RIG-BENCH-01');
+  if (host) {
+    const { data: components } = await api(`/items/${host.id}/components`);
+    const installed = new Set(components.map((entry) => entry.component_item_id));
+    const installs = [
+      { sku: 'MCU-ESP32-DEV', quantity: 1, note: 'Fitted to the test rig' },
+      { sku: 'HW-M3-10', quantity: 4, note: 'Standoffs for the mounting plate' }
+    ];
+
+    for (const install of installs) {
+      const component = items.get(install.sku);
+      if (!component || installed.has(component.id)) continue;
+      await api(`/items/${host.id}/components`, {
+        method: 'POST',
+        body: JSON.stringify({
+          component_item_id: component.id,
+          quantity: install.quantity,
+          note: install.note
+        })
+      });
+      log('~', `installed ${install.quantity} x ${component.name} in ${host.name}`);
+      changes += 1;
+    }
+  }
+
+  return changes;
 }
 
 // ── Attachments ──────────────────────────────────────────────────────────────
@@ -594,6 +666,7 @@ async function main() {
   const locations = await ensureLocations();
   const createdItems = await ensureItems(locations);
   const items = await loadItems();
+  const stockChanges = await ensureStockExamples(locations, items);
   const createdAttachments = await ensureAttachments(items);
   const createdServiceRecords = await ensureServiceRecords(items);
   const { data: stats } = await api('/meta');
@@ -602,7 +675,7 @@ async function main() {
   log('·', `${requests} API requests`);
   log(
     '·',
-    `${createdItems} new items, ${createdAttachments} new attachments, ${createdServiceRecords} new service records`
+    `${createdItems} new items, ${stockChanges} stock changes, ${createdAttachments} new attachments, ${createdServiceRecords} new service records`
   );
   log(
     '·',

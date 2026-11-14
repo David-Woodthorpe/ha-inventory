@@ -128,9 +128,9 @@ Item entities are grouped onto their nearest published **location** device
 rather than creating one device per item, so a room stays a single device.
 Each item's entities are named after the item (for example
 `Digital multimeter` and `Digital multimeter low stock`). The quantity sensor
-uses the item's unit and includes SKU, category, location and threshold as
-attributes. Each item's low-stock binary sensor is `problem` when
-`quantity <= min_quantity` and `min_quantity > 0`.
+uses the item's unit and includes SKU, category, location, threshold and a
+`stock` breakdown by location as attributes. Each item's low-stock binary
+sensor is `problem` when `quantity <= min_quantity` and `min_quantity > 0`.
 
 Location devices are linked with MQTT `via_device`. The top-level location name
 is used as `suggested_area`: Home Assistant suggests that area when it first
@@ -141,7 +141,7 @@ The **Contents** sensor attributes are:
 
 - `item_count`, `direct_item_count`, `total_quantity`, `low_stock`
 - `child_locations` — `[{ id, name }]`
-- `items` — `[{ name, sku, category, quantity, unit, min_quantity, low_stock, location, location_id, updated_at }]`
+- `items` — `[{ name, sku, category, quantity, unit, min_quantity, low_stock, location, location_id, stock, updated_at }]`
 - `contents` — a Markdown table ready for a Markdown card
 
 Example dashboard card:
@@ -187,6 +187,24 @@ Entity IDs come from the device and entity names. Search for `contents`,
   side; the next sync keeps the app's names.
 - If you change the broker or install MQTT after Inventory has started, restart
   the add-on so it can read the new service details.
+
+## Stock across locations and installed components
+
+One item can hold stock in several locations at once. On the item detail page,
+**Storage by location** lists each lot. Use **Transfer stock** to move part of
+the quantity to another location without changing the item total. The item's
+primary location (shown in lists, sorting and Home Assistant grouping) is the
+lot with the most stock.
+
+Editing an item's location consolidates all of its stock into the new location.
+Use the transfer form when you want to split it.
+
+Parts can also be signed out to another item, for example RAM or a drive fitted
+in a PC. On the host item, open **Installed components** and choose **Sign out a
+component**. The component's stock is removed immediately and recorded on the
+host. **Return** puts all or part of it back into the location it came from.
+An item cannot be deleted while it is installed in another item, or while it
+still hosts installed components.
 
 ## Service history and calendar
 
@@ -255,9 +273,9 @@ Restore validates the file with SQLite integrity, schema-version and foreign-key
 checks, and keeps the previous database if the new one cannot be opened.
 Backups from a newer add-on version are rejected.
 
-Database backups contain items, locations, attachment metadata, stock history
-and service records. Uploaded files are **not** included, so also copy `/data/uploads` if
-you need them. The JSON export endpoint (`/api/v1/export`) is a separate
+Database backups contain items, locations, per-location stock, installed-component allocations,
+attachment metadata, stock history and service records. Uploaded files are **not** included, so also
+copy `/data/uploads` if you need them. The JSON export endpoint (`/api/v1/export`) is a separate
 human-readable export and does not include binary files either.
 
 ## API

@@ -26,6 +26,11 @@ Workshop
   manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
 - **Stock movements** — every change is recorded with a reason and note; quick +/- buttons and manual
   adjustments. Quantities may be fractional (metres of wire, grams of paste).
+- **Multi-location stock** — keep one SKU in several bins at once. Transfer part of the quantity
+  between locations; the item total and primary location stay in sync automatically.
+- **Installed components** — sign a part out to another item (for example RAM fitted in a PC).
+  The component's stock drops immediately and the host item records what is installed. Return it
+  to stock with one click when it is removed.
 - **Photos and documents** — upload images, datasheets, manuals and receipts to items or locations.
 - **Service history** — optionally log maintenance per item with a date, notes, cost and receipt or
   document uploads. Each record is kept as a dated history.
@@ -301,9 +306,10 @@ What appears in Home Assistant:
 - One device per **location**, named with its full path (for example
   `Workshop / Shelf A`). Its **Contents** sensor state is the number of
   published items in that location and all sublocations. Attributes include
-  `items` (a list of name, quantity, unit, SKU, location and low-stock flag),
-  `contents` (a ready-made Markdown table), `child_locations` and a `low_stock`
-  count. Locations do not get a separate low-stock binary sensor; the per-item
+  `items` (a list of name, quantity, unit, SKU, location, low-stock flag and a
+  `stock` breakdown of the item's quantities per location), `contents` (a
+  ready-made Markdown table), `child_locations` and a `low_stock` count.
+  Locations do not get a separate low-stock binary sensor; the per-item
   **Low stock** entities and the hub alert remain available.
 - Each published **item** gets a **Quantity** sensor and a **Low stock** binary
   sensor (`device_class: problem`) that can trigger automations. These entities
@@ -392,8 +398,9 @@ Restore validates the uploaded file with SQLite integrity, schema-version and fo
 new database cannot be opened, the previous database is restored automatically. Backups from a newer
 schema version are rejected.
 
-Database backups contain items, locations, attachment metadata and stock history. Uploaded files live
-in `data/uploads` and are **not** included, so copy that directory separately.
+Database backups contain items, locations, per-location stock, installed-component allocations,
+attachment metadata and stock history. Uploaded files live in `data/uploads` and are **not** included,
+so copy that directory separately.
 
 Everything lives in `DATA_DIR`:
 
@@ -477,11 +484,16 @@ empty `currencies` list, and `price`/`currency` fields on create or update reque
 | `GET` | `/items` | List/search. Query: `q`, `category`, `tag`, `location_id`, `include_descendants`, `low_stock`, `include_archived`, `sort`, `order`, `limit`, `offset`. |
 | `POST` | `/items` | Create an item. Only `name` is required. |
 | `POST` | `/items/bulk` | Create up to 500 items; partial success returns `207`. |
-| `GET` | `/items/{id}` | Item detail, including attachments and location. |
-| `PATCH` | `/items/{id}` | Partial update. |
-| `DELETE` | `/items/{id}` | Delete an item, its movements and files. |
-| `POST` | `/items/{id}/stock` | Adjust stock with `{"delta": -2}` or `{"set": 10}`, plus optional `reason`/`note`. |
-| `GET` | `/items/{id}/movements` | Stock movement history. |
+| `GET` | `/items/{id}` | Item detail, including per-location stock, installed components and attachments. |
+| `PATCH` | `/items/{id}` | Partial update. Changing `location_id` consolidates all stock there. |
+| `DELETE` | `/items/{id}` | Delete an item, its movements and files. Blocked while it is installed in, or hosts, other items. |
+| `GET` | `/items/{id}/stock` | Per-location stock lots. |
+| `POST` | `/items/{id}/stock` | Adjust stock with `{"delta": -2}` or `{"set": 10}`, plus optional `location_id`, `reason`/`note`. |
+| `POST` | `/items/{id}/transfer` | Move part of the stock between locations with `from_location_id`, `to_location_id` and `quantity`. |
+| `GET` | `/items/{id}/components` | Components signed out to this item. |
+| `POST` | `/items/{id}/components` | Sign a component out to this item with `component_item_id` and `quantity`. |
+| `POST` | `/items/{id}/components/{allocationId}/return` | Return all or part of a signed-out component to stock. |
+| `GET` | `/items/{id}/movements` | Stock movement history, including transfers. |
 | `GET` | `/items/{id}/service` | Service history, newest first. |
 | `POST` | `/items/{id}/service` | Log a service record with `performed_at`, optional `notes`, `cost` and `currency`. |
 | `GET` | `/items/{id}/service/{recordId}` | One service record with its attachments. |
@@ -535,6 +547,20 @@ curl -X POST "$BASE/items/<item-id>/stock" \
   -H 'Content-Type: application/json' \
   -d '{"delta":-5,"reason":"used","note":"Prototype build"}'
 
+# Keep 40 of 240 resistors in a second drawer
+curl -X POST "$BASE/items/<item-id>/transfer" \
+  -H 'Content-Type: application/json' \
+  -d '{"from_location_id":"<drawer-1a-id>","to_location_id":"<drawer-2b-id>","quantity":40}'
+
+# Sign two sticks of RAM out to a PC, then return them to stock
+curl -X POST "$BASE/items/<pc-item-id>/components" \
+  -H 'Content-Type: application/json' \
+  -d '{"component_item_id":"<ram-item-id>","quantity":2,"note":"Fitted to the new build"}'
+
+curl -X POST "$BASE/items/<pc-item-id>/components/<allocation-id>/return" \
+  -H 'Content-Type: application/json' \
+  -d '{"quantity":2}'
+
 # Upload a datasheet
 curl -X POST "$BASE/attachments" \
   -F 'file=@datasheet.pdf' \
@@ -572,7 +598,7 @@ src/
 ├── hooks.server.ts            API-key auth, security headers and MQTT startup
 ├── lib/
 │   ├── components/            Icon, forms, location picker, upload form
-│   ├── server/                SQLite, services, service history, calendar sync, OpenAPI spec
+│   ├── server/                SQLite, stock, services, service history, calendar sync, OpenAPI spec
 │   └── types.ts               Shared item/location/attachment/service types
 └── routes/
     ├── +page.*                Dashboard

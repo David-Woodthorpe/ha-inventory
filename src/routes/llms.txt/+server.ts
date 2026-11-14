@@ -30,7 +30,9 @@ ${auth}
 - Use the UUID "id" fields exactly as returned. Never invent IDs.
 - Search before creating: GET /items?q=<words>. Items have a unique optional "sku".
 - Create items with POST /items and a JSON body. Only "name" is required.
-- Adjust stock with POST /items/{id}/stock using {"delta": 1} or {"set": 10}; do not PATCH quantity for routine stock changes.
+- Adjust stock with POST /items/{id}/stock using {"delta": 1} or {"set": 10}; do not PATCH quantity for routine stock changes. Pass an optional "location_id" to target one stock lot.
+- One item can hold stock in several locations. Move part of the quantity with POST /items/{id}/transfer ({"from_location_id","to_location_id","quantity"}). Do not create duplicate items for the same SKU.
+- Sign a component out to another item with POST /items/{id}/components on the host ({"component_item_id","quantity"}). Stock is removed immediately. Return it with POST /items/{id}/components/{allocationId}/return (omit quantity to return everything).
 - Upload photos/manuals with POST /attachments as multipart/form-data (file, item_id or location_id, kind=photo|document, caption).
 - Log maintenance with POST /items/{id}/service. Each service record has a date and optional notes, cost and receipt uploads. Service schedules are optional per item.
 - Locations are a tree. Create nested locations by passing parent_id. GET /locations?tree=true returns the tree.
@@ -44,9 +46,14 @@ GET    /items?q=&category=&tag=&location_id=&low_stock=&limit=&offset=
 POST   /items
 POST   /items/bulk                      (up to 500 items; partial success -> 207)
 GET    /items/{id}
-PATCH  /items/{id}                      (partial update)
-DELETE /items/{id}
-POST   /items/{id}/stock                ({"delta": -2, "reason": "used"})
+PATCH  /items/{id}                      (partial update; changing location_id consolidates stock)
+DELETE /items/{id}                      (409 while components are installed)
+GET    /items/{id}/stock                (per-location stock lots)
+POST   /items/{id}/stock                ({"delta": -2, "reason": "used"} or {"set": 10, "location_id": "..."})
+POST   /items/{id}/transfer             ({"from_location_id":"...","to_location_id":"...","quantity":40})
+GET    /items/{id}/components           (components installed in this item)
+POST   /items/{id}/components           ({"component_item_id":"...","quantity":2})
+POST   /items/{id}/components/{allocationId}/return  ({"quantity":2}; omit quantity for all)
 GET    /items/{id}/movements
 GET    /items/{id}/service              (service history, newest first)
 POST   /items/{id}/service              ({"performed_at":"2026-05-12","notes":"..."})
@@ -110,6 +117,19 @@ curl -X POST ${base}/items/<id>/stock \\
   -H 'Content-Type: application/json' \\
   -d '{"delta":-5,"reason":"used","note":"Prototype build"}'
 
+Split stock across locations:
+curl -X POST ${base}/items/<id>/transfer \\
+  -H 'Content-Type: application/json' \\
+  -d '{"from_location_id":"<drawer-a-id>","to_location_id":"<drawer-b-id>","quantity":40}'
+
+Install a component in another item, then return it:
+curl -X POST ${base}/items/<host-id>/components \\
+  -H 'Content-Type: application/json' \\
+  -d '{"component_item_id":"<component-id>","quantity":2,"note":"Fitted"}'
+curl -X POST ${base}/items/<host-id>/components/<allocation-id>/return \\
+  -H 'Content-Type: application/json' \\
+  -d '{"quantity":2}'
+
 Upload a manual:
 curl -X POST ${base}/attachments \\
   -F 'file=@manual.pdf' -F 'item_id=<id>' -F 'kind=document'
@@ -127,6 +147,8 @@ curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
 
 ## Notes
 - Quantities are numbers and may be fractional (e.g. 2.5 metres of wire).
+- item.quantity is the total across all locations and item.location_id is the primary (largest) lot. GET /items/{id} also returns "stock" (one entry per location) plus "components" (parts installed here) and "assigned_to" (hosts this item is installed in).
+- Transfers keep the total unchanged and are recorded in the movement history with the source and destination locations.
 - low_stock is true when min_quantity > 0 and quantity <= min_quantity.
 - service_due is true when service_next_due is today or in the past. Logging a service on an item with service_interval_months advances service_next_due from the latest record date.
 - When the instance has a Home Assistant calendar configured, the next due date is kept as an all-day calendar event automatically. No extra API call is needed.

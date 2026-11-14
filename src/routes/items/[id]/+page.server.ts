@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { createAttachment, deleteAttachment, getAttachment } from '$lib/server/attachments';
 import { serviceCalendarEnabled, serviceCalendarEntity } from '$lib/server/config';
 import { ApiError } from '$lib/server/errors';
-import { adjustStock, deleteItem, getItem, updateItem } from '$lib/server/items';
+import { adjustStock, deleteItem, getItem, listItemChoices, updateItem } from '$lib/server/items';
 import { getLocations } from '$lib/server/locations';
 import { todayDate } from '$lib/server/serialize';
 import {
@@ -10,6 +10,7 @@ import {
   deleteServiceRecord,
   updateServiceRecord
 } from '$lib/server/service';
+import { returnAllocation, signOutComponent, transferStock } from '$lib/server/stock';
 
 export function load({ params }: { params: { id: string } }) {
   const item = getItem(params.id);
@@ -23,6 +24,8 @@ export function load({ params }: { params: { id: string } }) {
     : null;
   return {
     item,
+    items: listItemChoices(),
+    locations,
     locationPublished,
     serviceCalendarEnabled,
     serviceCalendarEntity,
@@ -46,10 +49,60 @@ export const actions = {
       adjustStock(params.id, {
         delta: form.get('delta'),
         set: form.get('set'),
+        location_id: form.get('location_id'),
         reason: form.get('reason'),
         note: form.get('note')
       });
       return { success: 'Stock updated' };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  transfer: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    try {
+      transferStock(params.id, {
+        from_location_id: form.get('from_location_id'),
+        to_location_id: form.get('to_location_id'),
+        quantity: form.get('quantity'),
+        note: form.get('note')
+      });
+      return { success: 'Stock transferred' };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  signOut: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    try {
+      const source = String(form.get('source_location_id') ?? '').trim();
+      signOutComponent({
+        component_item_id: form.get('component_item_id'),
+        host_item_id: params.id,
+        quantity: form.get('quantity'),
+        ...(source ? { source_location_id: source } : {}),
+        note: form.get('note')
+      });
+      return { success: 'Component signed out' };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  returnComponent: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    try {
+      returnAllocation(
+        String(form.get('allocation_id') ?? ''),
+        {
+          quantity: form.get('quantity'),
+          note: form.get('note')
+        },
+        params.id
+      );
+      return { success: 'Component returned to stock' };
     } catch (error) {
       return actionFailure(error);
     }
