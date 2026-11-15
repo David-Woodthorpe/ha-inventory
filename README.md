@@ -35,6 +35,10 @@ Workshop
   manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
 - **Managed categories** — create, rename and delete categories in one place. Give each category a
   built-in icon or an uploaded image; items without a photo show their category artwork.
+- **Equipment racks** — give a cabinet its height in U (42 for a full one) and a Rack tab draws the
+  elevation: servers, switches and UPSes mounted at their slots, and rack shelves as locations with
+  their own contents. Mounting records where a device sits, not where its stock is kept, so a
+  momentarily-empty slot never looks like missing stock.
 - **Unsorted area** — mark one location as the staging point for parts that are not filed yet. A
   drawer map can show what is waiting and file it into a chosen bin, or into the drawer itself, in
   whatever quantity the bin holds.
@@ -523,6 +527,8 @@ empty `currencies` list, and `price`/`currency` fields on create or update reque
 | `DELETE` | `/locations/{id}` | Delete only when empty (`409` otherwise). |
 | `GET` | `/locations/{id}/layout` | Grid size, placed bins, unplaced bins and loose items for a drawer map. |
 | `PUT` | `/locations/{id}/layout` | Replace the bin placements: `{"bins":[{"location_id","x","y","w","h","rotation"}]}`. |
+| `GET` | `/locations/{id}/rack` | U slots with the items and shelves mounted in them. |
+| `PUT` | `/locations/{id}/rack` | Replace the elevation: `{"mounts":[{"item_id","u_start","u_height"}]}`. |
 | `GET` | `/categories` | Managed categories with item counts, icons and image URLs. |
 | `POST` | `/categories` | Create a category with a name, optional description and icon. |
 | `GET` | `/categories/{id}` | One category. |

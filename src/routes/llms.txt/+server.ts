@@ -39,6 +39,7 @@ ${auth}
 - Locations are a tree. Create nested locations by passing parent_id. GET /locations?tree=true returns the tree.
 - A drawer or tray that is divided into cells is a grid map: set grid_cols and grid_rows on the container, then place its child locations as bins with PUT /locations/{id}/layout. A bin is just a child location, so moving it to another drawer is PATCH /locations/{id} with parent_id — that clears its position, because cells belong to the old grid. Read the current arrangement with GET /locations/{id}/layout before changing it; the call replaces the whole map, so send every bin you want to keep.
 - One location can be the unsorted area (is_staging: true on PATCH /locations/{id}). It is where parts wait before being filed; the drawer map lists what is in it and files items into a bin or into the drawer. Setting the flag elsewhere clears the previous one.
+- A location can be an equipment rack: give it rack_units (42 for a full cabinet) and its slots hold machines at a U position via PUT /locations/{id}/rack. Mounting records a position, not stock — the item stays wherever it is stored. Rack shelves are the rack's own child locations, so their contents live inside them.
 - Categories are managed records. Create one with POST /categories, then use its name as the item's "category". Each category can have a built-in icon and an uploaded image; items without a photo expose category_icon and category_image_url as display fallbacks. Renaming a category updates its items.
 - Responses are {"data": ...} on success and {"error": {"code","message","details"}} on failure. HTTP status codes are meaningful.
 - List endpoints are paginated with limit/offset and return pagination.total + pagination.has_more.
@@ -72,6 +73,8 @@ PATCH  /locations/{id}                  (rename, move, or set grid_cols/grid_row
 DELETE /locations/{id}
 GET    /locations/{id}/layout           (grid size, placed bins, unplaced bins, loose items)
 PUT    /locations/{id}/layout           ({"bins":[{"location_id":"...","x":0,"y":0,"w":1,"h":2,"rotation":0}]}; replaces the map)
+GET    /locations/{id}/rack             (U slots with mounted items and shelves)
+PUT    /locations/{id}/rack             ({"mounts":[{"item_id":"...","u_start":20,"u_height":2}]}; replaces the elevation)
 GET    /categories                        (with item counts, icons and image URLs)
 POST   /categories                        ({"name":"Resistors","icon":"cpu"})
 GET    /categories/{id}
@@ -145,6 +148,22 @@ size; each bin is one of its child locations, holding a footprint and a position
   "quantity":8}) when a bin only holds part of the stock, or POST /items/move to move everything.
 - Bins are ordinary locations, so they keep their items, photos and history wherever they
   are placed; moving one to another drawer is PATCH /locations/{id} with parent_id.
+
+## Racks
+
+A rack is a one-dimensional container, counted in U slots from the bottom up. The location holds the
+height; each mount claims a range of slots and points at either an item or a location.
+
+- Make a location a rack: PATCH /locations/{id} with {"rack_units":42}. Setting it to null removes the
+  rack, which is refused while anything is still mounted.
+- Mount devices with PUT /locations/{id}/rack. The body is the whole elevation; anything omitted is
+  unmounted. Add one at a time with GET then PUT if that is simpler.
+- A mount is {"item_id":"..."} for equipment or {"location_id":"..."} for a shelf, plus u_start and
+  u_height. Exactly one of the two ids per mount.
+- A shelf must be a sublocation of the rack, because its contents are inside it. Equipment can be any
+  item; mounting it does not change its stock or its stored location, so an item racked here but kept
+  elsewhere is reported with stored_here false.
+- Slots cannot overlap, cannot run past the top, and a rack cannot shrink below its highest mount.
 
 ## Examples
 

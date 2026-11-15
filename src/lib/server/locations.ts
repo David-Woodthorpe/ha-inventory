@@ -21,6 +21,7 @@ interface LocationRow {
   grid_h: number | null;
   grid_rot: number;
   is_staging: number;
+  rack_units: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -127,6 +128,7 @@ export function getLocations(): Location[] {
       grid_h: row.grid_h ?? null,
       grid_rot: normaliseRotation(row.grid_rot),
       is_staging: Boolean(row.is_staging),
+      rack_units: row.rack_units ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at
     } satisfies Location;
@@ -196,8 +198,8 @@ export function createLocation(input: unknown): Location {
   const id = randomUUID();
   const now = nowIso();
   db.prepare(
-    `INSERT INTO locations (id, name, parent_id, description, code, sort_order, ha_enabled, grid_cols, grid_rows, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO locations (id, name, parent_id, description, code, sort_order, ha_enabled, grid_cols, grid_rows, rack_units, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     data.name,
@@ -208,6 +210,7 @@ export function createLocation(input: unknown): Location {
     data.ha_enabled ? 1 : 0,
     data.grid_cols ?? null,
     data.grid_rows ?? null,
+    data.rack_units ?? null,
     now,
     now
   );
@@ -265,6 +268,35 @@ export function updateLocation(id: string, input: unknown): Location {
     }
   }
 
+  // A rack cannot shrink below its highest mounted device, and cannot stop being
+  // a rack while it still has mounts.
+  const nextRackUnits = data.rack_units === undefined ? existing.rack_units : data.rack_units;
+  if (data.rack_units !== undefined) {
+    if (nextRackUnits === null) {
+      const mounted = db
+        .prepare('SELECT COUNT(*) AS count FROM rack_mounts WHERE rack_location_id = ?')
+        .get(id) as { count: number };
+      if (Number(mounted.count) > 0) {
+        throw conflict(
+          `This location still has ${mounted.count} mounted device(s). Remove them before turning off the rack.`,
+          { mounted: Number(mounted.count) }
+        );
+      }
+    } else {
+      const highest = db
+        .prepare(
+          'SELECT COALESCE(MAX(u_start + u_height - 1), 0) AS top FROM rack_mounts WHERE rack_location_id = ?'
+        )
+        .get(id) as { top: number };
+      if (Number(highest.top) > nextRackUnits) {
+        throw conflict(
+          `The rack cannot shrink to ${nextRackUnits}U: something is mounted up to U${highest.top}.`,
+          { highest_mounted_u: Number(highest.top) }
+        );
+      }
+    }
+  }
+
   const fields: string[] = [];
   const values: unknown[] = [];
   const map: Array<[keyof typeof data, string]> = [
@@ -276,7 +308,8 @@ export function updateLocation(id: string, input: unknown): Location {
     ['ha_enabled', 'ha_enabled'],
     ['grid_cols', 'grid_cols'],
     ['grid_rows', 'grid_rows'],
-    ['is_staging', 'is_staging']
+    ['is_staging', 'is_staging'],
+    ['rack_units', 'rack_units']
   ];
   for (const [key, column] of map) {
     if (data[key] !== undefined) {

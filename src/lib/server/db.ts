@@ -258,6 +258,37 @@ const migrations: string[] = [
   // can hold it at a time, which is enforced when the flag is set.
   `
   ALTER TABLE locations ADD COLUMN is_staging INTEGER NOT NULL DEFAULT 0;
+  `,
+  // v9 — equipment racks: a location can be a rack of U slots
+  //
+  // A rack is one-dimensional, 42U in a full cabinet, and its slots hold things
+  // that are not containers: a switch, a server, a UPS. Those are items, so a
+  // mount points at either an item or a location (a rack shelf, which is a child
+  // location and holds its own items). Exactly one of the two is set, enforced
+  // by the table, and a rack can hold a given item or shelf only once.
+  `
+  ALTER TABLE locations ADD COLUMN rack_units INTEGER;
+
+  CREATE TABLE rack_mounts (
+    id TEXT PRIMARY KEY,
+    rack_location_id TEXT NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+    item_id TEXT REFERENCES items(id) ON DELETE CASCADE,
+    location_id TEXT REFERENCES locations(id) ON DELETE CASCADE,
+    u_start INTEGER NOT NULL CHECK (u_start >= 1),
+    u_height INTEGER NOT NULL CHECK (u_height >= 1),
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    CHECK (
+      (item_id IS NOT NULL AND location_id IS NULL) OR
+      (item_id IS NULL AND location_id IS NOT NULL)
+    )
+  );
+  CREATE INDEX idx_rack_mounts_rack ON rack_mounts(rack_location_id, u_start);
+  CREATE UNIQUE INDEX idx_rack_mounts_item
+    ON rack_mounts(rack_location_id, item_id) WHERE item_id IS NOT NULL;
+  CREATE UNIQUE INDEX idx_rack_mounts_location
+    ON rack_mounts(rack_location_id, location_id) WHERE location_id IS NOT NULL;
   `
 ];
 

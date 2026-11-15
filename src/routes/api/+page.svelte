@@ -75,7 +75,9 @@
         { method: 'PATCH', path: '/locations/{id}', desc: 'Rename, move, or set grid_cols/grid_rows' },
         { method: 'DELETE', path: '/locations/{id}', desc: 'Only when empty (409)' },
         { method: 'GET', path: '/locations/{id}/layout', desc: 'Grid map: bins, unplaced bins, loose items' },
-        { method: 'PUT', path: '/locations/{id}/layout', desc: 'Replace bin placements, including rotation' }
+        { method: 'PUT', path: '/locations/{id}/layout', desc: 'Replace bin placements, including rotation' },
+        { method: 'GET', path: '/locations/{id}/rack', desc: 'Rack elevation: items and shelves by U slot' },
+        { method: 'PUT', path: '/locations/{id}/rack', desc: 'Replace the elevation' }
       ]
     },
     {

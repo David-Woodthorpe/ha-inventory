@@ -505,6 +505,12 @@ export const openapi = {
               is_staging: {
                 type: 'boolean',
                 description: 'Mark this location as the unsorted area, or false to unmark it'
+              },
+              rack_units: {
+                type: 'integer',
+                nullable: true,
+                description:
+                  'Rack height in U slots. Null removes the rack, which is refused while devices are mounted.'
               }
             }
           })
@@ -573,6 +579,57 @@ export const openapi = {
         },
         responses: {
           '200': { description: 'Saved layout', content: json({ type: 'object', properties: { data: ref('DrawerLayout') } }) },
+          ...errorResponses
+        }
+      }
+    },
+    '/locations/{id}/rack': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Locations'],
+        summary: 'Read the elevation of an equipment rack',
+        description:
+          'Returns the rack height in U slots and every mount from the bottom up. A mount is an item (equipment) or a location (a rack shelf); a shelf must be a sublocation of the rack. used_units sums the mounted heights, so gaps show as free space. Mounting records a position only and never changes stock.',
+        responses: {
+          '200': { description: 'Rack elevation', content: json({ type: 'object', properties: { data: ref('RackView') } }) },
+          '404': errorResponses['404']
+        }
+      },
+      put: {
+        tags: ['Locations'],
+        summary: 'Replace every mount in a rack',
+        description:
+          'The body is the whole elevation: anything omitted is unmounted. Mounts that overlap, run past the top or repeat an item or shelf are rejected. The location must already have rack_units set.',
+        requestBody: {
+          required: true,
+          content: json({
+            type: 'object',
+            required: ['mounts'],
+            properties: {
+              mounts: {
+                type: 'array',
+                maxItems: 200,
+                items: {
+                  type: 'object',
+                  required: ['u_start', 'u_height'],
+                  properties: {
+                    item_id: { type: 'string', format: 'uuid', description: 'Equipment to mount' },
+                    location_id: {
+                      type: 'string',
+                      format: 'uuid',
+                      description: 'Shelf to mount; must be a sublocation of the rack'
+                    },
+                    u_start: { type: 'integer', minimum: 1, example: 20 },
+                    u_height: { type: 'integer', minimum: 1, example: 2 },
+                    note: { type: 'string', nullable: true }
+                  }
+                }
+              }
+            }
+          })
+        },
+        responses: {
+          '200': { description: 'Saved elevation', content: json({ type: 'object', properties: { data: ref('RackView') } }) },
           ...errorResponses
         }
       }
@@ -926,8 +983,40 @@ export const openapi = {
             description:
               'True for the one location that holds parts not filed yet. Setting it clears any previous unsorted area.'
           },
+          rack_units: {
+            type: 'integer',
+            nullable: true,
+            description: 'Rack height in U slots, or null when this location is not a rack'
+          },
           created_at: { type: 'string', format: 'date-time' },
           updated_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      RackMount: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          type: { type: 'string', enum: ['item', 'location'] },
+          ref_id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          code: { type: 'string', nullable: true },
+          u_start: { type: 'integer' },
+          u_height: { type: 'integer' },
+          stored_here: {
+            type: 'boolean',
+            description: 'For an item: whether it is stored in this rack or below it'
+          },
+          note: { type: 'string', nullable: true }
+        }
+      },
+      RackView: {
+        type: 'object',
+        properties: {
+          location: location,
+          units: { type: 'integer', nullable: true },
+          mounts: { type: 'array', items: ref('RackMount') },
+          used_units: { type: 'integer' },
+          free_units: { type: 'integer' }
         }
       },
       LooseItem: {

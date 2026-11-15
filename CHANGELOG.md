@@ -4,6 +4,19 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.11.0 — 2026-11-15
+
+- **Equipment racks.** Give a cabinet its height — 42U for a full one — under Edit, and a **Rack** tab
+  draws the elevation with U numbers down the side. Mount servers, switches and UPSes at the slots they
+  occupy, and mount rack shelves too: a shelf is a location, so whatever sits on it stays inside it.
+  Click an empty slot to start a mount there, and the free-space count treats gaps honestly rather
+  than assuming the rack is packed.
+- **Mounting is a position, not a stock move.** A device racked in the cabinet stays stored wherever
+  it is stored, so the rack can't quietly relocate your stock. If an item is racked here but stored
+  elsewhere, the elevation marks it, and the item page still points at its real home.
+- **Racks refuse to lie.** Two devices cannot claim the same U, nothing can run past the top, a shelf
+  has to be a sublocation of that rack, and the rack cannot shrink below its highest mount.
+
 ## 1.10.2 — 2026-11-15
 
 - **Sublocations fold away.** The Sublocations card on a location page starts collapsed, showing the

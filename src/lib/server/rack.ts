@@ -1,0 +1,276 @@
+import { randomUUID } from 'node:crypto';
+import { db, nowIso, transaction } from './db';
+import { badRequest, conflict, notFound } from './errors';
+import { getLocation, getLocations } from './locations';
+import { rackSchema, parseWith } from './schemas';
+import type { RackMount, RackView } from '$lib/types';
+
+interface RackRow {
+  id: string;
+  item_id: string | null;
+  location_id: string | null;
+  u_start: number;
+  u_height: number;
+  note: string | null;
+}
+
+interface MountInput {
+  item_id?: string | null;
+  location_id?: string | null;
+  u_start: number;
+  u_height: number;
+  note?: string | null;
+}
+
+/** True when a location is the rack itself or sits somewhere below it. */
+function isInsideRack(locationId: string | null, rack: { id: string; path_ids: string[] }): boolean {
+  return Boolean(locationId && (locationId === rack.id || rack.path_ids.includes(locationId)));
+}
+
+function readMounts(rackId: string): RackMount[] {
+  const rows = db
+    .prepare(
+      `SELECT id, item_id, location_id, u_start, u_height, note
+       FROM rack_mounts WHERE rack_location_id = ? ORDER BY u_start ASC`
+    )
+    .all(rackId) as unknown as RackRow[];
+
+  const locations = new Map(getLocations().map((entry) => [entry.id, entry]));
+
+  const itemRows = db
+    .prepare('SELECT id, name, sku, location_id FROM items')
+    .all() as Array<{ id: string; name: string; sku: string | null; location_id: string | null }>;
+  const items = new Map(itemRows.map((row) => [row.id, row]));
+
+  return rows.map((row) => {
+    if (row.item_id) {
+      const item = items.get(row.item_id);
+      return {
+        id: row.id,
+        type: 'item' as const,
+        ref_id: row.item_id,
+        name: item?.name ?? 'Deleted item',
+        code: item?.sku ?? null,
+        u_start: row.u_start,
+        u_height: row.u_height,
+        stored_here: isInsideRack(item?.location_id ?? null, locations.get(rackId) ?? { id: rackId, path_ids: [] }),
+        note: row.note
+      };
+    }
+    const location = row.location_id ? locations.get(row.location_id) : undefined;
+    return {
+      id: row.id,
+      type: 'location' as const,
+      ref_id: row.location_id ?? '',
+      name: location?.name ?? 'Deleted location',
+      code: location?.code ?? null,
+      u_start: row.u_start,
+      u_height: row.u_height,
+      stored_here: true,
+      note: row.note
+    };
+  });
+}
+
+/**
+ * The elevation of a rack: every mount, from the bottom slot upwards.
+ *
+ * `used_units` sums the heights rather than the span, so gaps are visible as
+ * free space rather than being quietly absorbed.
+ */
+export function getRack(locationId: string): RackView {
+  const location = getLocation(locationId);
+  const mounts = readMounts(locationId);
+  const used = mounts.reduce((total, mount) => total + mount.u_height, 0);
+  const units = location.rack_units;
+  return {
+    location,
+    units,
+    mounts,
+    used_units: used,
+    free_units: units === null ? 0 : Math.max(0, units - used)
+  };
+}
+
+/** Every reason a mount cannot sit where it says, thrown before any write. */
+function validateMounts(
+  rack: { id: string; units: number },
+  mounts: MountInput[],
+  existing: Array<{ id: string; item_id: string | null; location_id: string | null }>,
+  ignoreIds: Set<string>
+): void {
+  const all = getLocations();
+  const childIds = new Set(all.filter((entry) => entry.parent_id === rack.id).map((entry) => entry.id));
+  const locationNames = new Map(all.map((entry) => [entry.id, entry.name]));
+  const itemNames = new Map(
+    (db.prepare('SELECT id, name FROM items').all() as Array<{ id: string; name: string }>).map(
+      (row) => [row.id, row.name]
+    )
+  );
+
+  const mountedItems = new Set(
+    existing.filter((row) => !ignoreIds.has(row.id) && row.item_id).map((row) => row.item_id as string)
+  );
+  const mountedLocations = new Set(
+    existing
+      .filter((row) => !ignoreIds.has(row.id) && row.location_id)
+      .map((row) => row.location_id as string)
+  );
+
+  const occupied = new Map<string, string>();
+
+  for (const mount of mounts) {
+    const label =
+      (mount.item_id ? itemNames.get(mount.item_id) : undefined) ??
+      (mount.location_id ? locationNames.get(mount.location_id) : undefined) ??
+      'Unknown';
+
+    if (mount.item_id && mount.location_id) {
+      throw badRequest('A slot holds either an item or a shelf, not both', { name: label });
+    }
+    if (!mount.item_id && !mount.location_id) {
+      throw badRequest('A slot needs an item or a shelf');
+    }
+
+    if (mount.item_id) {
+      if (!itemNames.has(mount.item_id)) throw notFound('Item', mount.item_id);
+      if (mountedItems.has(mount.item_id)) {
+        throw conflict(`“${label}” is already mounted in this rack.`, { item_id: mount.item_id });
+      }
+      mountedItems.add(mount.item_id);
+    }
+
+    if (mount.location_id) {
+      if (!locationNames.has(mount.location_id)) throw notFound('Location', mount.location_id);
+      if (!childIds.has(mount.location_id)) {
+        throw badRequest(
+          `“${locationNames.get(mount.location_id)}” is not a sublocation of this rack, so it cannot be mounted in it.`,
+          { location_id: mount.location_id }
+        );
+      }
+      if (mountedLocations.has(mount.location_id)) {
+        throw conflict(`“${label}” is already mounted in this rack.`, {
+          location_id: mount.location_id
+        });
+      }
+      mountedLocations.add(mount.location_id);
+    }
+
+    if (mount.u_start < 1) {
+      throw badRequest(`“${label}” cannot start below U1.`, { name: label });
+    }
+    if (mount.u_start + mount.u_height - 1 > rack.units) {
+      throw conflict(
+        `“${label}” runs past the top: ${mount.u_height}U from U${mount.u_start} needs a ${rack.units}U rack.`,
+        { name: label, rack_units: rack.units }
+      );
+    }
+
+    for (let u = mount.u_start; u < mount.u_start + mount.u_height; u += 1) {
+      const other = occupied.get(String(u));
+      if (other) {
+        throw conflict(`U${u} is claimed by both “${label}” and “${other}”.`, {
+          u,
+          conflicts_with: other
+        });
+      }
+      occupied.set(String(u), label);
+    }
+  }
+}
+
+function requireRack(locationId: string) {
+  const location = getLocation(locationId);
+  if (location.rack_units === null) {
+    throw badRequest(
+      'This location is not a rack yet. Set rack_units on the location first.',
+      { location_id: location.id }
+    );
+  }
+  return { ...location, units: location.rack_units };
+}
+
+/**
+ * Replace every mount in a rack.
+ *
+ * The payload is the whole elevation, not a patch: anything left out is
+ * unmounted. Positions are validated here rather than trusted from the client.
+ */
+export function setRack(locationId: string, input: unknown): RackView {
+  const location = requireRack(locationId);
+  const data = parseWith(rackSchema, input);
+  const existing = db
+    .prepare('SELECT id, item_id, location_id FROM rack_mounts WHERE rack_location_id = ?')
+    .all(locationId) as Array<{ id: string; item_id: string | null; location_id: string | null }>;
+
+  validateMounts(
+    { id: location.id, units: location.units },
+    data.mounts,
+    existing,
+    new Set(existing.map((row) => row.id))
+  );
+
+  const now = nowIso();
+  transaction(() => {
+    db.prepare('DELETE FROM rack_mounts WHERE rack_location_id = ?').run(locationId);
+    const statement = db.prepare(
+      `INSERT INTO rack_mounts (id, rack_location_id, item_id, location_id, u_start, u_height, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const mount of data.mounts) {
+      statement.run(
+        randomUUID(),
+        locationId,
+        mount.item_id ?? null,
+        mount.location_id ?? null,
+        mount.u_start,
+        mount.u_height,
+        mount.note ?? null,
+        now,
+        now
+      );
+    }
+  });
+
+  return getRack(locationId);
+}
+
+/** Add one mount, validating it against what is already in the rack. */
+export function addRackMount(locationId: string, input: unknown): RackView {
+  const location = requireRack(locationId);
+  const data = parseWith(rackSchema, { mounts: [input] });
+  const existing = db
+    .prepare('SELECT id, item_id, location_id FROM rack_mounts WHERE rack_location_id = ?')
+    .all(locationId) as Array<{ id: string; item_id: string | null; location_id: string | null }>;
+
+  const mount = data.mounts[0];
+  validateMounts({ id: location.id, units: location.units }, [mount], existing, new Set());
+
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO rack_mounts (id, rack_location_id, item_id, location_id, u_start, u_height, note, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    randomUUID(),
+    locationId,
+    mount.item_id ?? null,
+    mount.location_id ?? null,
+    mount.u_start,
+    mount.u_height,
+    mount.note ?? null,
+    now,
+    now
+  );
+
+  return getRack(locationId);
+}
+
+/** Take one mount out, leaving everything else where it is. */
+export function removeRackMount(locationId: string, mountId: string): RackView {
+  const row = db
+    .prepare('SELECT id FROM rack_mounts WHERE id = ? AND rack_location_id = ?')
+    .get(mountId, locationId) as { id: string } | undefined;
+  if (!row) throw notFound('Mount', mountId);
+  db.prepare('DELETE FROM rack_mounts WHERE id = ?').run(mountId);
+  return getRack(locationId);
+}

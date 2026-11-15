@@ -87,6 +87,21 @@
           />
         </div>
 
+        <div class="field">
+          <label class="label" for="rack_units">Rack height (U)</label>
+          <input
+            id="rack_units"
+            class="input"
+            name="rack_units"
+            type="number"
+            min="1"
+            max="64"
+            value={values.rack_units}
+            placeholder="e.g. 42"
+          />
+          <span class="hint">Leave empty unless this is a cabinet of equipment racked in U slots.</span>
+        </div>
+
         <div class="field full">
           <label class="label" for="description">Description</label>
           <textarea

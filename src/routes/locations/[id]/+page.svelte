@@ -60,12 +60,15 @@
   {/each}
 </nav>
 
-{#if (location.grid_cols && location.grid_rows) || location.child_count === 0}
+{#if (location.grid_cols && location.grid_rows) || location.child_count === 0 || location.rack_units}
   <nav class="tabs" aria-label="Location views">
     <a class="active" href={h(`/locations/${location.id}`)} aria-current="page">
       <Icon name="pin" size={14} /> Overview
     </a>
     <a href={h(`/locations/${location.id}/map`)}><Icon name="dashboard" size={14} /> Map</a>
+    {#if location.rack_units}
+      <a href={h(`/locations/${location.id}/rack`)}><Icon name="layers" size={14} /> Rack</a>
+    {/if}
   </nav>
 {/if}
 
@@ -307,6 +310,14 @@
           {#if location.code}
             <dt>Code</dt>
             <dd class="mono">{location.code}</dd>
+          {/if}
+
+          {#if location.rack_units}
+            <dt>Rack</dt>
+            <dd>
+              {location.rack_units}U
+              <a class="link" href={h(`/locations/${location.id}/rack`)}>Open rack</a>
+            </dd>
           {/if}
 
           {#if location.grid_cols && location.grid_rows}

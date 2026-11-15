@@ -34,6 +34,8 @@ export interface Location {
   grid_rot: number;
   /** True for the one location that holds parts not filed yet. */
   is_staging: boolean;
+  /** Rack height in U slots, or null when this location is not a rack. */
+  rack_units: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +96,29 @@ export interface DrawerMapSummary {
   bins: Array<{ location_id: string; name: string; x: number; y: number; w: number; h: number }>;
   /** Bins on this map that hold the item being viewed. */
   highlight: string[];
+}
+
+/** Something mounted in a rack slot: an item (equipment) or a shelf (a location). */
+export interface RackMount {
+  id: string;
+  type: 'item' | 'location';
+  ref_id: string;
+  name: string;
+  code: string | null;
+  u_start: number;
+  u_height: number;
+  /** For an item: whether it is stored in this rack or below it. */
+  stored_here: boolean;
+  note: string | null;
+}
+
+/** A rack and its elevation, ordered from the bottom slot upwards. */
+export interface RackView {
+  location: Location;
+  units: number | null;
+  mounts: RackMount[];
+  used_units: number;
+  free_units: number;
 }
 
 /** The staging area: where parts wait until they are filed. */

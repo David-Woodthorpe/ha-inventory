@@ -45,6 +45,7 @@ export interface LocationFormValues {
   description: string;
   code: string;
   ha_enabled: boolean;
+  rack_units: string;
 }
 
 export interface CategoryFormValues {

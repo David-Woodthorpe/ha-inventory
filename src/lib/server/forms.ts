@@ -144,7 +144,14 @@ export function readItemForm(form: FormData): { values: ItemFormValues; input: R
 }
 
 export function emptyLocationFormValues(parentId = ''): LocationFormValues {
-  return { name: '', parent_id: parentId, description: '', code: '', ha_enabled: false };
+  return {
+    name: '',
+    parent_id: parentId,
+    description: '',
+    code: '',
+    ha_enabled: false,
+    rack_units: ''
+  };
 }
 
 export function locationToFormValues(location: Location): LocationFormValues {
@@ -153,7 +160,8 @@ export function locationToFormValues(location: Location): LocationFormValues {
     parent_id: location.parent_id ?? '',
     description: location.description ?? '',
     code: location.code ?? '',
-    ha_enabled: location.ha_enabled
+    ha_enabled: location.ha_enabled,
+    rack_units: location.rack_units === null ? '' : String(location.rack_units)
   };
 }
 
@@ -166,7 +174,8 @@ export function readLocationForm(form: FormData): {
     parent_id: text(form, 'parent_id'),
     description: text(form, 'description'),
     code: text(form, 'code'),
-    ha_enabled: form.get('ha_enabled') === 'on'
+    ha_enabled: form.get('ha_enabled') === 'on',
+    rack_units: text(form, 'rack_units')
   };
   return {
     values,
@@ -175,7 +184,8 @@ export function readLocationForm(form: FormData): {
       parent_id: values.parent_id,
       description: values.description,
       code: values.code,
-      ha_enabled: values.ha_enabled
+      ha_enabled: values.ha_enabled,
+      rack_units: values.rack_units === '' ? null : values.rack_units
     }
   };
 }

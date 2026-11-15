@@ -209,7 +209,8 @@ export const locationCreateSchema = z.object({
   sort_order: optionalNumber(Number.NEGATIVE_INFINITY),
   ha_enabled: optionalBoolean,
   grid_cols: optionalGridSize,
-  grid_rows: optionalGridSize
+  grid_rows: optionalGridSize,
+  rack_units: optionalGridSize
 });
 
 export const locationUpdateSchema = z
@@ -222,7 +223,8 @@ export const locationUpdateSchema = z
     ha_enabled: optionalBoolean,
     grid_cols: optionalGridSize,
     grid_rows: optionalGridSize,
-    is_staging: optionalBoolean
+    is_staging: optionalBoolean,
+    rack_units: optionalGridSize
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'Provide at least one field to update'
@@ -245,6 +247,23 @@ const gridPlacement = z.object({
 /** A whole drawer map, sent as a replacement: anything omitted becomes unplaced. */
 export const layoutSchema = z.object({
   bins: z.array(gridPlacement).max(500, 'A single grid holds at most 500 bins')
+});
+
+const rackMountInput = z
+  .object({
+    item_id: optionalId,
+    location_id: optionalId,
+    u_start: z.coerce.number().int().min(1),
+    u_height: z.coerce.number().int().min(1).max(60),
+    note: optionalText(1000)
+  })
+  .refine((value) => Boolean(value.item_id) !== Boolean(value.location_id), {
+    message: 'Give exactly one of item_id or location_id'
+  });
+
+/** A whole rack elevation, sent as a replacement. */
+export const rackSchema = z.object({
+  mounts: z.array(rackMountInput).max(200, 'A rack holds at most 200 mounts')
 });
 
 export function parseWith<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
