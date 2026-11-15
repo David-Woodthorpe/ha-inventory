@@ -51,6 +51,10 @@
   let selected = $state<string | null>(page.url.searchParams.get('bin'));
   const selectedBin = $derived(bins.find((bin) => bin.location_id === selected) ?? null);
 
+  /** Footprint chosen in the add-bin form, quoted back in its hint. */
+  let binWidth = $state(1);
+  let binDepth = $state(1);
+
   /** The unsorted panel is a working mode, so it remembers being open. */
   let showUnsorted = $state(false);
   const STORAGE_KEY = 'inventory:map:unsorted';
@@ -625,8 +629,15 @@
         <div class="card-body">
           <form method="POST" action="?/addBin" class="form-grid">
             <div class="field">
-              <label class="label" for="bin-name">Name</label>
-              <input class="input" id="bin-name" name="name" type="text" required maxlength="120" placeholder="47 µF family" />
+              <label class="label" for="bin-name">Name <span class="faint">(optional)</span></label>
+              <input
+                class="input"
+                id="bin-name"
+                name="name"
+                type="text"
+                maxlength="120"
+                placeholder="e.g. 47 µF family"
+              />
             </div>
             <div class="field">
               <label class="label" for="bin-code">Short code</label>
@@ -634,19 +645,39 @@
             </div>
             <div class="field">
               <label class="label" for="bin-w">Cells wide</label>
-              <input class="input" id="bin-w" name="w" type="number" min="1" max={cols} value="1" required />
+              <input
+                class="input"
+                id="bin-w"
+                name="w"
+                type="number"
+                min="1"
+                max={cols}
+                bind:value={binWidth}
+                required
+              />
             </div>
             <div class="field">
               <label class="label" for="bin-h">Cells deep</label>
-              <input class="input" id="bin-h" name="h" type="number" min="1" max={rows} value="1" required />
+              <input
+                class="input"
+                id="bin-h"
+                name="h"
+                type="number"
+                min="1"
+                max={rows}
+                bind:value={binDepth}
+                required
+              />
             </div>
             <div class="form-actions">
               <button class="btn btn-primary" type="submit"><Icon name="plus" size={15} /> Add and place</button>
             </div>
           </form>
           <p class="small muted" style="margin-top: 10px;">
-            The bin is dropped into the first free space of its size. Anything that does not fit
-            waits in the unplaced list below.
+            The bin is dropped into the first free space of its size; anything that does not fit
+            waits in the unplaced list below. Leave the name blank and it is called
+            <strong>“{binWidth}x{binDepth} gridfinity bin”</strong> with a counting code such as
+            <strong>GF{binWidth}x{binDepth}-1</strong>.
           </p>
         </div>
       </div>

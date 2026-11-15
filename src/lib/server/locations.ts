@@ -169,6 +169,26 @@ export function getDescendantIds(id: string): string[] {
   return result;
 }
 
+/**
+ * The next free code in a series such as GF1x2-3.
+ *
+ * Used for generated bins: the suffix counts bins of that footprint across the
+ * whole inventory, so a "GF1x2-2" can be found even when it lives in another
+ * drawer. Existing codes are read rather than counted, so deleting a bin does
+ * not hand its number to a different one.
+ */
+export function nextCodeInSeries(prefix: string): string {
+  const rows = db
+    .prepare("SELECT code FROM locations WHERE code LIKE ? COLLATE NOCASE")
+    .all(`${prefix}%`) as Array<{ code: string | null }>;
+  let highest = 0;
+  for (const row of rows) {
+    const suffix = (row.code ?? '').slice(prefix.length);
+    if (/^\d+$/.test(suffix)) highest = Math.max(highest, Number(suffix));
+  }
+  return `${prefix}${highest + 1}`;
+}
+
 export function createLocation(input: unknown): Location {
   const data = parseWith(locationCreateSchema, input);
   const parent = data.parent_id ? getLocation(data.parent_id) : null;

@@ -2,7 +2,13 @@ import { fail } from '@sveltejs/kit';
 import { ApiError } from '$lib/server/errors';
 import { findFreeOrigin, occupiedCells } from '$lib/grid';
 import { getLayout, getStagingArea, setLayout } from '$lib/server/layout';
-import { createLocation, getLocation, getLocations, updateLocation } from '$lib/server/locations';
+import {
+  createLocation,
+  getLocation,
+  getLocations,
+  nextCodeInSeries,
+  updateLocation
+} from '$lib/server/locations';
 import { transferStock } from '$lib/server/stock';
 
 export function load({ params }: { params: { id: string } }) {
@@ -69,16 +75,21 @@ export const actions = {
     }
   },
 
-  /** Create a bin location and drop it into the first free space of its size. */
+  /**
+   * Create a bin location and drop it into the first free space of its size.
+   *
+   * Leaving the name blank names the bin after its footprint and gives it a
+   * counting code, so a drawer can be filled with printed bins first and
+   * labelled later: "1x2 gridfinity bin" / "GF1x2-1".
+   */
   addBin: async ({ request, params }: { request: Request; params: { id: string } }) => {
     const form = await request.formData();
-    const name = String(form.get('name') ?? '').trim();
-    const code = String(form.get('code') ?? '').trim();
+    const typedName = String(form.get('name') ?? '').trim();
+    const typedCode = String(form.get('code') ?? '').trim();
     const w = Number(form.get('w') ?? 1);
     const h = Number(form.get('h') ?? 1);
     const rotation = Number(form.get('rotation') ?? 0);
 
-    if (!name) return fail(400, { error: 'Give the bin a name' });
     try {
       const container = getLocation(params.id);
       if (container.grid_cols === null || container.grid_rows === null) {
@@ -87,6 +98,9 @@ export const actions = {
       if (!Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1) {
         return fail(400, { error: 'A bin needs a whole-cell width and depth' });
       }
+
+      const name = typedName || `${w}x${h} gridfinity bin`;
+      const code = typedCode || (typedName ? '' : nextCodeInSeries(`GF${w}x${h}-`));
 
       const created = createLocation({
         name,

@@ -4,6 +4,17 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.10.0 — 2026-11-15
+
+- **Unnamed bins name themselves.** Adding a bin without typing a name now calls it after its
+  footprint — *1x2 gridfinity bin* — and gives it a counting shortcode: `GF1x2-1`, `GF1x2-2`, `GF1x2-3`,
+  counted per size so a 2x2 bin starts its own series at `GF2x2-1`. Fill a drawer with printed bins
+  first and label them later.
+- **Numbers are not recycled.** The next code is read from the highest one that exists, so deleting a
+  bin does not hand its number to a different bin — anything you have already written on a label stays
+  true. Naming a bin yourself still takes precedence, and a bin you name keeps the code you typed, if
+  any.
+
 ## 1.9.0 — 2026-11-15
 
 - **See where an item lives.** When an item sits in a bin on a drawer map, its page now draws that
