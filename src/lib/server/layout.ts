@@ -4,49 +4,60 @@ import { cellKeys, effectiveFootprint, normaliseRotation } from '$lib/grid';
 import { listItems } from './items';
 import { getLocation, getLocations } from './locations';
 import { layoutSchema, parseWith } from './schemas';
-import type { DrawerBin, DrawerLayout, Location, LooseItem } from '$lib/types';
-
-interface BinCount {
-  item_count: number;
-  unit_count: number;
-}
+import type { BinItem, DrawerBin, DrawerLayout, Location, LooseItem } from '$lib/types';
 
 /**
- * Items and units held directly at each location.
+ * What each of these locations holds, item by item.
  *
- * Lots are the truth once an item has been split, and the fallback covers an
- * item whose location_id was set without stock rows yet (for example straight
- * after an import), without double counting rows that exist in both.
+ * Lots are the truth once an item has been split across bins, and the fallback
+ * covers an item whose location_id was set without stock rows yet (for example
+ * straight after an import), without double counting rows that exist in both.
  */
-function binCounts(): Map<string, BinCount> {
+function contentsByLocation(locationIds: string[]): Map<string, BinItem[]> {
+  const byLocation = new Map<string, BinItem[]>();
+  if (locationIds.length === 0) return byLocation;
+
+  const placeholders = locationIds.map(() => '?').join(', ');
   const rows = db
     .prepare(
       `WITH lots AS (
-         SELECT s.location_id AS location_id, s.item_id AS item_id, s.quantity AS quantity
+         SELECT s.location_id AS location_id, i.id AS item_id, i.name AS name,
+                i.unit AS unit, s.quantity AS quantity
          FROM item_stock s
          JOIN items i ON i.id = s.item_id
-         WHERE i.archived = 0 AND s.location_id IS NOT NULL
+         WHERE i.archived = 0 AND s.location_id IN (${placeholders})
        ),
        fallback AS (
-         SELECT i.location_id AS location_id, i.id AS item_id, i.quantity AS quantity
+         SELECT i.location_id AS location_id, i.id AS item_id, i.name AS name,
+                i.unit AS unit, i.quantity AS quantity
          FROM items i
-         WHERE i.archived = 0 AND i.location_id IS NOT NULL
+         WHERE i.archived = 0 AND i.location_id IN (${placeholders})
            AND NOT EXISTS (SELECT 1 FROM item_stock s WHERE s.item_id = i.id)
        )
-       SELECT location_id,
-              COUNT(DISTINCT item_id) AS item_count,
-              COALESCE(SUM(quantity), 0) AS unit_count
+       SELECT location_id, item_id, name, unit, SUM(quantity) AS quantity
        FROM (SELECT * FROM lots UNION ALL SELECT * FROM fallback)
-       GROUP BY location_id`
+       GROUP BY location_id, item_id
+       ORDER BY name COLLATE NOCASE ASC`
     )
-    .all() as Array<{ location_id: string; item_count: number; unit_count: number }>;
+    .all(...locationIds, ...locationIds) as Array<{
+    location_id: string;
+    item_id: string;
+    name: string;
+    unit: string;
+    quantity: number;
+  }>;
 
-  return new Map(
-    rows.map((row) => [
-      row.location_id,
-      { item_count: Number(row.item_count), unit_count: Number(row.unit_count) }
-    ])
-  );
+  for (const row of rows) {
+    const list = byLocation.get(row.location_id) ?? [];
+    list.push({
+      id: row.item_id,
+      name: row.name,
+      unit: row.unit,
+      quantity: Number(row.quantity)
+    });
+    byLocation.set(row.location_id, list);
+  }
+  return byLocation;
 }
 
 /** How much of each item is held by one container, as opposed to on hand. */
@@ -97,14 +108,14 @@ function placementOf(location: Location): DrawerBin | null {
     base_h: location.grid_h,
     rotation,
     item_count: 0,
-    unit_count: 0
+    unit_count: 0,
+    items: []
   };
 }
 
 export function getLayout(id: string): DrawerLayout {
   const location = getLocation(id);
   const children = getLocations().filter((entry) => entry.parent_id === id);
-  const counts = binCounts();
 
   const bins: DrawerBin[] = [];
   const unplaced: Location[] = [];
@@ -114,10 +125,14 @@ export function getLayout(id: string): DrawerLayout {
       unplaced.push(child);
       continue;
     }
-    const count = counts.get(child.id);
-    placement.item_count = count?.item_count ?? 0;
-    placement.unit_count = count?.unit_count ?? 0;
     bins.push(placement);
+  }
+
+  const contents = contentsByLocation(bins.map((bin) => bin.location_id));
+  for (const bin of bins) {
+    bin.items = contents.get(bin.location_id) ?? [];
+    bin.item_count = bin.items.length;
+    bin.unit_count = bin.items.reduce((total, item) => total + item.quantity, 0);
   }
   bins.sort((a, b) => a.y - b.y || a.x - b.x || a.name.localeCompare(b.name));
   unplaced.sort((a, b) => a.name.localeCompare(b.name));

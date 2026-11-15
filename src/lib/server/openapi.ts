@@ -958,7 +958,20 @@ export const openapi = {
                 base_h: { type: 'integer' },
                 rotation: { type: 'integer', enum: [0, 90] },
                 item_count: { type: 'integer' },
-                unit_count: { type: 'number' }
+                unit_count: { type: 'number' },
+                items: {
+                  type: 'array',
+                  description: 'What is stored in this bin, with the quantity held there',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string', format: 'uuid' },
+                      name: { type: 'string' },
+                      unit: { type: 'string' },
+                      quantity: { type: 'number' }
+                    }
+                  }
+                }
               }
             }
           },

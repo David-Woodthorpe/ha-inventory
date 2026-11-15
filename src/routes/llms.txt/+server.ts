@@ -133,6 +133,8 @@ size; each bin is one of its child locations, holding a footprint and a position
   rejected too.
 - One bin may hold several different items. Record the position inside the bin with an item
   custom field ({"slot": 2}) rather than creating a location per compartment.
+- Each entry in bins carries its items (id, name, unit, quantity), so one call tells you both the
+  layout and what every bin holds. unit_count and item_count are summed from that list.
 - Items sitting directly in the container, not in any bin, come back as loose_items, each with
   loose_quantity (what this container holds) and quantity (the total on hand). Put them away with
   POST /items/{id}/transfer ({"from_location_id":"<container-id>","to_location_id":"<bin-id>",

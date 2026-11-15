@@ -40,6 +40,14 @@ export interface LocationNode extends Location {
   children: LocationNode[];
 }
 
+/** An item held by a bin, with the quantity stored there. */
+export interface BinItem {
+  id: string;
+  name: string;
+  unit: string;
+  quantity: number;
+}
+
 /** A bin placed on its parent container's grid map. */
 export interface DrawerBin {
   location_id: string;
@@ -58,6 +66,8 @@ export interface DrawerBin {
   rotation: number;
   item_count: number;
   unit_count: number;
+  /** What is actually stored in the bin, newest of the map view. */
+  items: BinItem[];
 }
 
 /**

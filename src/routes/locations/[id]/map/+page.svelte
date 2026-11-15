@@ -360,6 +360,25 @@
             <Icon name="x" size={14} />
           </button>
         </div>
+
+        <div class="map-contents">
+          {#if selectedBin.items.length === 0}
+            <p class="small muted">Empty — put stock in from the loose list below.</p>
+          {:else}
+            <p class="map-contents-head">
+              <span>{plural(selectedBin.items.length, 'item')} in this bin</span>
+              <span class="muted">{formatNumber(selectedBin.unit_count)} total</span>
+            </p>
+            <ul class="map-contents-list">
+              {#each selectedBin.items as item (item.id)}
+                <li>
+                  <a class="link" href={h(`/items/${item.id}`)}>{item.name}</a>
+                  <span class="small muted nowrap">{formatNumber(item.quantity)} {item.unit}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
       {/if}
 
       <div class="card-body">
@@ -705,6 +724,43 @@
   .map-toolbar-name {
     font-weight: 650;
     font-size: 13px;
+  }
+
+  .map-contents {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .map-contents-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .map-contents-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 168px;
+    overflow-y: auto;
+    font-size: 12.5px;
+  }
+
+  .map-contents-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: baseline;
   }
 
   .map-loose-form {

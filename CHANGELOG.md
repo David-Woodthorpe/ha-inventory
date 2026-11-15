@@ -4,6 +4,14 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.7.3 — 2026-11-15
+
+- **See what is in a bin without leaving the map.** Selecting a bin now lists its contents with
+  quantities beside the grid, so a tray holding eighteen DIMMs says so, and an empty one says it
+  is empty. Each name links to the item.
+- **One request for the whole picture.** The map returns every bin's contents with the layout, so
+  the panel costs no extra round trip and stays right as items are put away.
+
 ## 1.7.2 — 2026-11-15
 
 - **Put away part of a stock lot.** A bin can now take a chosen quantity instead of everything. If
