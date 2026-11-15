@@ -4,6 +4,12 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.10.2 — 2026-11-15
+
+- **Sublocations fold away.** The Sublocations card on a location page starts collapsed, showing the
+  count, and expands on click. A wall rack of a hundred bins no longer pushes the items below it off
+  the screen, and the card remembers nothing between visits, so it always starts tidy.
+
 ## 1.10.1 — 2026-11-15
 
 - **Generated bin names are neutral.** An unnamed bin is now called *1x2 bin* with the code

@@ -22,6 +22,7 @@ Workshop
 ## Features
 
 - **Arbitrarily nested locations** — rooms, shelves, drawers, bins; move a branch without breaking it.
+  A location's sublocations fold away by default, so a rack of a hundred bins still fits on one screen.
 - **Drawer maps** — give any container a grid (a 42 mm Gridfinity drawer is 5 × 8) and drag its bins
   into place, toggling each between portrait and landscape to fit. Bins are ordinary locations, so
   their items, photos and history travel with them. The map shows used and free cells, and any item

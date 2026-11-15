@@ -138,37 +138,38 @@
 <div class="split">
   <div class="stack">
     <div class="card">
-      <div class="card-head">
-        <h2>Sublocations</h2>
-        <a class="link small" href={h(`/locations/new?parent=${location.id}`)}>
-          <Icon name="plus" size={12} /> Add
-        </a>
-      </div>
-      <div class="card-body">
-        {#if data.children.length}
-          <div class="child-grid">
-            {#each data.children as child (child.id)}
-              <a class="child-card" href={h(`/locations/${child.id}`)}>
-                <span class="child-card-icon"><Icon name="folder" size={17} /></span>
-                <span style="min-width: 0; flex: 1;">
-                  <span class="child-card-name truncate" style="display: block;">{child.name}</span>
-                  <span class="child-card-meta">
-                    {plural(child.total_item_count, 'item')}
-                    {#if child.child_count}· {plural(child.child_count, 'sublocation')}{/if}
+      <details class="collapse">
+        <summary class="collapse-head">
+          <Icon name="chevronRight" size={14} class="collapse-caret" />
+          <span class="collapse-title">Sublocations</span>
+          <span class="badge">{plural(data.children.length, 'sublocation')}</span>
+        </summary>
+        <div class="card-body">
+          {#if data.children.length}
+            <div class="child-grid">
+              {#each data.children as child (child.id)}
+                <a class="child-card" href={h(`/locations/${child.id}`)}>
+                  <span class="child-card-icon"><Icon name="folder" size={17} /></span>
+                  <span style="min-width: 0; flex: 1;">
+                    <span class="child-card-name truncate" style="display: block;">{child.name}</span>
+                    <span class="child-card-meta">
+                      {plural(child.total_item_count, 'item')}
+                      {#if child.child_count}· {plural(child.child_count, 'sublocation')}{/if}
+                    </span>
                   </span>
-                </span>
-                <Icon name="chevronRight" size={15} />
-              </a>
-            {/each}
-          </div>
-        {:else}
-          <p class="small muted">
-            No sublocations yet.
-            <a class="link" href={h(`/locations/new?parent=${location.id}`)}>Add one</a> to go another level
-            deeper.
-          </p>
-        {/if}
-      </div>
+                  <Icon name="chevronRight" size={15} />
+                </a>
+              {/each}
+            </div>
+          {:else}
+            <p class="small muted">
+              No sublocations yet.
+              <a class="link" href={h(`/locations/new?parent=${location.id}`)}>Add one</a> to go another level
+              deeper.
+            </p>
+          {/if}
+        </div>
+      </details>
     </div>
 
     <div class="card">

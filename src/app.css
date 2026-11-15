@@ -549,6 +549,46 @@ img {
   padding: 20px;
 }
 
+/* A card whose body folds away: used where a list can grow long, such as the
+   sublocations of a storage location holding a whole rack of bins. */
+.collapse-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  font-size: 15px;
+  font-weight: 620;
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.collapse-head::-webkit-details-marker {
+  display: none;
+}
+
+.collapse-head:hover {
+  background: var(--surface-2);
+}
+
+.collapse-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.collapse-caret {
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+details[open] > .collapse-head {
+  border-bottom: 1px solid var(--border);
+}
+
+details[open] > .collapse-head .collapse-caret {
+  transform: rotate(90deg);
+}
+
 .card-body.tight {
   padding: 12px;
 }
