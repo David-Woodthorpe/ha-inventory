@@ -5,6 +5,7 @@
   import Icon from './Icon.svelte';
   import KeyValueEditor from './KeyValueEditor.svelte';
   import LocationSelect from './LocationSelect.svelte';
+  import NumberStepper from './NumberStepper.svelte';
 
   let {
     values,
@@ -166,14 +167,12 @@
       <div class="form-grid">
         <div class="field">
           <label class="label" for="quantity">Quantity</label>
-          <input
+          <NumberStepper
             id="quantity"
-            class="input"
-            type="number"
             name="quantity"
             value={values.quantity}
-            min="0"
-            step="any"
+            min={0}
+            label="quantity"
           />
           <span class="hint">Total across all locations.</span>
         </div>
@@ -198,14 +197,12 @@
 
         <div class="field">
           <label class="label" for="min_quantity">Low-stock threshold</label>
-          <input
+          <NumberStepper
             id="min_quantity"
-            class="input"
-            type="number"
             name="min_quantity"
             value={values.min_quantity}
-            min="0"
-            step="any"
+            min={0}
+            label="low-stock threshold"
           />
           <span class="hint">Flag the item when quantity reaches this level. 0 disables it.</span>
         </div>

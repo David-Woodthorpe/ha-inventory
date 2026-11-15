@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import type { PageData } from './$types';
   import GridMapMini from '$lib/components/GridMapMini.svelte';
+  import NumberStepper from '$lib/components/NumberStepper.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import UploadForm from '$lib/components/UploadForm.svelte';
   import { withBase } from '$lib/paths';
@@ -629,13 +630,11 @@
           <div class="form-grid" style="gap: 10px;">
             <div class="field">
               <label class="label" for="delta">Adjust by</label>
-              <input
+              <NumberStepper
                 id="delta"
-                class="input"
-                type="number"
                 name="delta"
-                step="any"
                 placeholder="e.g. -5 or 25"
+                label="adjustment"
                 required
               />
             </div>
@@ -757,13 +756,11 @@
             <div class="form-grid" style="gap: 10px;">
               <div class="field">
                 <label class="label" for="transfer-qty">Quantity</label>
-                <input
+                <NumberStepper
                   id="transfer-qty"
-                  class="input"
-                  type="number"
                   name="quantity"
-                  min="0.000001"
-                  step="any"
+                  min={0}
+                  label="transfer quantity"
                   required
                 />
               </div>

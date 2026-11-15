@@ -549,6 +549,60 @@ img {
   padding: 20px;
 }
 
+/* A number field with explicit −/+ buttons. The native spinner is hidden so
+   there is only one way to step, and it moves by a whole number. */
+.number-stepper {
+  display: flex;
+  align-items: stretch;
+}
+
+.number-stepper-input {
+  border-radius: 0;
+  text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.number-stepper-input::-webkit-outer-spin-button,
+.number-stepper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.number-stepper-btn {
+  display: grid;
+  place-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.number-stepper-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.number-stepper-btn:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  border-right: none;
+}
+
+.number-stepper-btn:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-left: none;
+}
+
+.number-stepper.compact .number-stepper-btn {
+  padding: 0 6px;
+}
+
+.number-stepper.compact .number-stepper-input {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
 /* A card whose body folds away: used where a list can grow long, such as the
    sublocations of a storage location holding a whole rack of bins. */
 .collapse-head {

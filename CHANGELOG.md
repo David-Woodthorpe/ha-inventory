@@ -4,6 +4,14 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.11.1 — 2026-11-15
+
+- **Quantity fields step in whole numbers.** The browser's own spinner on a quantity field behaved
+  differently across browsers — one stepped by a millionth, another did nothing — because the field
+  has to accept decimals. Quantity, low-stock threshold, stock adjustment and transfer amounts now
+  have their own − and + buttons that move by one, while the field still takes a typed decimal such
+  as 2.5 m of wire.
+
 ## 1.11.0 — 2026-11-15
 
 - **Equipment racks.** Give a cabinet its height — 42U for a full one — under Edit, and a **Rack** tab
