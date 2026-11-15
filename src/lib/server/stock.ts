@@ -6,10 +6,11 @@ import type {
   StockMovement
 } from '$lib/types';
 import { db, nowIso, transaction } from './db';
-import { conflict, notFound } from './errors';
+import { ApiError, conflict, notFound } from './errors';
 import { getLocations } from './locations';
 import {
   allocationReturnSchema,
+  bulkMoveSchema,
   componentSignOutSchema,
   parseWith,
   stockTransferSchema
@@ -382,10 +383,16 @@ export function moveAllStock(
 ): void {
   ensureLocationExists(toLocationId);
   const item = itemIdentity(itemId);
-  if ((item.location_id ?? null) === (toLocationId ?? null)) return;
+  const rows = stockRows(itemId);
+  // Consolidate whenever any lot sits elsewhere, not just when the primary
+  // location differs: an item split across bins can already have its largest
+  // lot at the destination, and the remaining lots still need merging.
+  const settled = rows.length
+    ? rows.every((row) => (row.location_id ?? null) === (toLocationId ?? null))
+    : (item.location_id ?? null) === (toLocationId ?? null);
+  if (settled) return;
 
   transaction(() => {
-    const rows = stockRows(itemId);
     const total = roundQuantity(rows.reduce((sum, row) => sum + Number(row.quantity), 0));
     db.prepare('DELETE FROM item_stock WHERE item_id = ?').run(itemId);
     if (total > QUANTITY_EPSILON) addToLot(itemId, toLocationId, total);
@@ -421,6 +428,49 @@ export function transferStock(itemId: string, input: unknown): ItemStockLot[] {
   });
 
   return getItemStock(itemId);
+}
+
+export interface BulkMoveError {
+  item_id: string;
+  message: string;
+}
+
+export interface BulkMoveResult {
+  moved: string[];
+  errors: BulkMoveError[];
+}
+
+/**
+ * Move every unit of several items to one location in a single request. Each
+ * item is moved in its own transaction, so one failure never rolls back the
+ * others; the caller gets the successful ids plus per-item error messages.
+ */
+export function bulkMoveStock(input: unknown): BulkMoveResult {
+  const data = parseWith(bulkMoveSchema, input);
+  ensureLocationExists(data.to_location_id);
+
+  const moved: string[] = [];
+  const errors: BulkMoveError[] = [];
+
+  for (const itemId of data.item_ids) {
+    try {
+      moveAllStock(itemId, data.to_location_id, {
+        reason: 'moved',
+        note: data.note ?? null
+      });
+      moved.push(itemId);
+    } catch (error) {
+      errors.push({
+        item_id: itemId,
+        message:
+          error instanceof ApiError
+            ? error.message
+            : `Could not move item ${itemId}`
+      });
+    }
+  }
+
+  return { moved, errors };
 }
 
 function allocationQuery(): string {

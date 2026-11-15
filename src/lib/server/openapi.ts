@@ -134,6 +134,52 @@ export const openapi = {
         }
       }
     },
+    '/items/move': {
+      post: {
+        tags: ['Stock'],
+        summary: 'Move every unit of several items to one location',
+        description:
+          'Batch equivalent of changing an item\'s location: each item\'s stock lots are consolidated into the destination and item totals are unchanged. Every item is moved in its own transaction, so partial success is possible. Returns 207 when some items failed.',
+        requestBody: {
+          required: true,
+          content: json({
+            type: 'object',
+            required: ['item_ids', 'to_location_id'],
+            properties: {
+              item_ids: {
+                type: 'array',
+                minItems: 1,
+                maxItems: 500,
+                items: { type: 'string', format: 'uuid' }
+              },
+              to_location_id: { type: 'string', format: 'uuid' },
+              note: { type: 'string', nullable: true }
+            }
+          })
+        },
+        responses: {
+          '200': {
+            description: 'All items moved',
+            content: json({
+              type: 'object',
+              properties: {
+                data: {
+                  type: 'object',
+                  properties: {
+                    moved: { type: 'array', items: { type: 'string' } },
+                    errors: { type: 'array', items: { type: 'object' } },
+                    moved_count: { type: 'integer' },
+                    error_count: { type: 'integer' }
+                  }
+                }
+              }
+            })
+          },
+          '207': { description: 'Some items moved, some failed', content: json({ type: 'object' }) },
+          ...errorResponses
+        }
+      }
+    },
     '/items/{id}': {
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
       get: {

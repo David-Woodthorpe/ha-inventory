@@ -117,6 +117,16 @@ export const stockTransferSchema = z
     message: 'Source and destination locations must be different'
   });
 
+export const bulkMoveSchema = z.object({
+  item_ids: z
+    .array(requiredId)
+    .min(1, 'Select at least one item')
+    .max(500, 'A maximum of 500 items can be moved per request')
+    .transform((ids) => [...new Set(ids)]),
+  to_location_id: requiredId,
+  note: optionalText(1000)
+});
+
 export const componentSignOutSchema = z.object({
   component_item_id: requiredId,
   host_item_id: requiredId,
@@ -131,6 +141,7 @@ export const allocationReturnSchema = z.object({
 });
 
 export type StockTransferInput = z.infer<typeof stockTransferSchema>;
+export type BulkMoveInput = z.infer<typeof bulkMoveSchema>;
 export type ComponentSignOutInput = z.infer<typeof componentSignOutSchema>;
 export type AllocationReturnInput = z.infer<typeof allocationReturnSchema>;
 

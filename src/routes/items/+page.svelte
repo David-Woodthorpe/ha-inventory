@@ -28,6 +28,18 @@
     if (data.filters.sort !== 'name') params.set('sort', data.filters.sort);
     return h(params.size ? `/items?${params.toString()}` : '/items');
   }
+
+  const form = $derived(page.form);
+
+  function toggleAll(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    input
+      .closest('form')
+      ?.querySelectorAll<HTMLInputElement>('input[name="item_ids"]')
+      .forEach((box) => {
+        box.checked = input.checked;
+      });
+  }
 </script>
 
 <svelte:head>
@@ -52,6 +64,18 @@
     </a>
   </div>
 </div>
+
+{#if form?.error}
+  <div class="alert alert-error" role="alert" style="margin-bottom: 18px;">
+    <Icon name="alert" size={17} />
+    {form.error}
+  </div>
+{:else if form?.success}
+  <div class="alert alert-success" role="status" style="margin-bottom: 18px;">
+    <Icon name="check" size={17} />
+    {form.success}
+  </div>
+{/if}
 
 <form class="filters" method="GET" action={h('/items')}>
   <div class="search">
@@ -137,12 +161,36 @@
   {/if}
 </form>
 
-<div class="card">
+<form method="POST" action="?/move">
+  {#if data.items.length}
+    <div class="card bulk-bar">
+      <label class="bulk-select">
+        <input type="checkbox" onclick={toggleAll} />
+        Select all on this page
+      </label>
+      <div class="bulk-dest">
+        <LocationSelect
+          locations={data.options.locations}
+          name="to_location_id"
+          id="move-destination"
+          emptyLabel="Move to…"
+          fullPath
+        />
+      </div>
+      <button class="btn btn-primary" type="submit">
+        <Icon name="arrowRight" size={14} />
+        Move selected
+      </button>
+    </div>
+  {/if}
+
+  <div class="card">
   {#if data.items.length}
     <div class="table-wrap">
       <table class="data">
         <thead>
           <tr>
+            <th style="width: 34px;"></th>
             <th>Item</th>
             <th class="hide-sm">Category</th>
             <th class="hide-sm">Location</th>
@@ -157,6 +205,14 @@
         <tbody>
           {#each data.items as item (item.id)}
             <tr>
+              <td>
+                <input
+                  type="checkbox"
+                  name="item_ids"
+                  value={item.id}
+                  aria-label={`Select ${item.name}`}
+                />
+              </td>
               <td>
                 <a class="cell-main" href={h(`/items/${item.id}`)}>
                   <ItemThumb {item} />
@@ -230,7 +286,8 @@
       </div>
     </div>
   {/if}
-</div>
+  </div>
+</form>
 
 {#if data.total > data.limit}
   <div class="pagination">

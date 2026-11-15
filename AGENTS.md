@@ -18,7 +18,20 @@ changed endpoint does not update them automatically. Treat the following as part
 | a database migration | `src/lib/server/db.ts` (append to `migrations`), and note any new field in the Item shape docs |
 | an add-on option or environment variable | `config.yaml` (`options` + `schema`), `DOCS.md`, `.env.example`, `README.md` "Configuration" |
 | the version number | `package.json`, `config.yaml`, `src/lib/server/config.ts` (`appVersion`) — all three, they are independent literals |
-| a user-visible feature | `README.md` "Features" |
+| a user-visible feature | `README.md` "Features" **and** a new entry at the top of `CHANGELOG.md` |
+
+## The changelog is user-facing
+
+`CHANGELOG.md` is rendered on the add-on page in Home Assistant, so write for someone
+who installed the add-on, not for yourself:
+
+- One entry per released version, newest first, headed `## <version> — <date>`.
+- Describe the effect on the user ("tick several items and move them at once"), not the
+  implementation ("added POST /items/move").
+- Note behaviour changes and fixes that could surprise someone, especially where old
+  data or existing automations behave differently.
+- Add the entry in the same commit as the version bump, so the notes never lag the
+  release they describe.
 
 ## Writing the assistant-facing docs
 

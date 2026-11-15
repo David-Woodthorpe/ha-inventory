@@ -30,6 +30,8 @@ Workshop
   adjustments. Quantities may be fractional (metres of wire, grams of paste).
 - **Multi-location stock** — keep one SKU in several bins at once. Transfer part of the quantity
   between locations; the item total and primary location stay in sync automatically.
+- **Batch move** — tick several items on the item list and move them all into one location in a
+  single request. Handy when rearranging drawers: totals are unchanged and every move is logged.
 - **Installed components** — sign a part out to another item (for example RAM fitted in a PC).
   The component's stock drops immediately and the host item records what is installed. Return it
   to stock with one click when it is removed.
@@ -486,6 +488,7 @@ empty `currencies` list, and `price`/`currency` fields on create or update reque
 | `GET` | `/items` | List/search. Query: `q`, `category`, `tag`, `location_id`, `include_descendants`, `low_stock`, `include_archived`, `sort`, `order`, `limit`, `offset`. |
 | `POST` | `/items` | Create an item. Only `name` is required. |
 | `POST` | `/items/bulk` | Create up to 500 items; partial success returns `207`. |
+| `POST` | `/items/move` | Move every unit of several items into one location; partial success returns `207`. |
 | `GET` | `/items/{id}` | Item detail, including per-location stock, installed components and attachments. |
 | `PATCH` | `/items/{id}` | Partial update. Changing `location_id` consolidates all stock there. |
 | `DELETE` | `/items/{id}` | Delete an item, its movements and files. Blocked while it is installed in, or hosts, other items. |
@@ -569,6 +572,11 @@ curl -X POST "$BASE/items/<item-id>/transfer" \
   -H 'Content-Type: application/json' \
   -d '{"from_location_id":"<drawer-1a-id>","to_location_id":"<drawer-2b-id>","quantity":40}'
 
+# Move a whole selection of items into one drawer, for example while rearranging
+curl -X POST "$BASE/items/move" \
+  -H 'Content-Type: application/json' \
+  -d '{"item_ids":["<id-1>","<id-2>"],"to_location_id":"<drawer-2b-id>","note":"Drawer reshuffle"}'
+
 # Sign two sticks of RAM out to a PC, then return them to stock
 curl -X POST "$BASE/items/<pc-item-id>/components" \
   -H 'Content-Type: application/json' \
@@ -638,7 +646,9 @@ compose.yaml                   Docker Compose service with a persistent volume
 docker-entrypoint.sh           Prepares /data and drops to the node user
 repository.yaml, config.yaml   Home Assistant add-on repository metadata
 DOCS.md                        Home Assistant add-on documentation
+CHANGELOG.md                   Release notes shown on the add-on page
 AGENTS.md                      Doc-sync checklist for AI assistants
+docs/                          Design notes for work not yet started (see label-printing.md)
 data/                          SQLite database and uploads (gitignored)
 ```
 

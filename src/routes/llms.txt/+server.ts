@@ -32,6 +32,7 @@ ${auth}
 - Create items with POST /items and a JSON body. Only "name" is required.
 - Adjust stock with POST /items/{id}/stock using {"delta": 1} or {"set": 10}; do not PATCH quantity for routine stock changes. Pass an optional "location_id" to target one stock lot.
 - One item can hold stock in several locations. Move part of the quantity with POST /items/{id}/transfer ({"from_location_id","to_location_id","quantity"}). Do not create duplicate items for the same SKU.
+- Move whole items between bins in bulk with POST /items/move ({"item_ids":["..."],"to_location_id":"..."}). It consolidates every lot of each item into the destination, keeps totals unchanged, and returns 207 when some items failed.
 - Sign a component out to another item with POST /items/{id}/components on the host ({"component_item_id","quantity"}). Stock is removed immediately. Return it with POST /items/{id}/components/{allocationId}/return (omit quantity to return everything).
 - Upload photos/manuals with POST /attachments as multipart/form-data (file, item_id or location_id, kind=photo|document, caption).
 - Log maintenance with POST /items/{id}/service. Each service record has a date and optional notes, cost and receipt uploads. Service schedules are optional per item.
@@ -46,6 +47,7 @@ GET    /meta
 GET    /items?q=&category=&tag=&location_id=&low_stock=&limit=&offset=
 POST   /items
 POST   /items/bulk                      (up to 500 items; partial success -> 207)
+POST   /items/move                      ({"item_ids":[...],"to_location_id":"..."}; partial success -> 207)
 GET    /items/{id}
 PATCH  /items/{id}                      (partial update; changing location_id consolidates stock)
 DELETE /items/{id}                      (409 while components are installed)

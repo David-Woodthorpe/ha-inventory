@@ -1405,6 +1405,40 @@ table.data th.num {
   margin-bottom: 18px;
 }
 
+/* Batch actions above the item table: select rows, choose a destination. */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.bulk-bar .bulk-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bulk-bar .bulk-dest {
+  flex: 1;
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.bulk-bar input[type='checkbox'],
+.data input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .filters .search {
   position: relative;
   flex: 1;
