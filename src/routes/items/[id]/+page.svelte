@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import GridMapMini from '$lib/components/GridMapMini.svelte';
   import NumberStepper from '$lib/components/NumberStepper.svelte';
+  import RackStrip from '$lib/components/RackStrip.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import UploadForm from '$lib/components/UploadForm.svelte';
   import { withBase } from '$lib/paths';
@@ -475,6 +476,36 @@
         </details>
       </div>
     </div>
+
+    {#if data.rackMount}
+      <div class="card">
+        <div class="card-head">
+          <h2>In the rack</h2>
+          <a class="link small" href={h(`/locations/${data.rackMount.rack.id}/rack`)}>Open rack</a>
+        </div>
+        <div class="card-body">
+          <div class="rack-here">
+            <RackStrip
+              units={data.rackMount.units}
+              slots={data.rackMount.slots}
+              label={`${data.rackMount.rack.name} with this item at U${data.rackMount.u_start}`}
+            />
+            <div class="rack-here-text">
+              <a class="link" href={h(`/locations/${data.rackMount.rack.id}/rack`)}>
+                {data.rackMount.rack.name}
+              </a>
+              <span class="small muted">{data.rackMount.rack.path_label}</span>
+              <span class="badge mono">
+                U{data.rackMount.u_start}{data.rackMount.u_height > 1
+                  ? `–${data.rackMount.u_start + data.rackMount.u_height - 1}`
+                  : ''}
+                · {data.rackMount.u_height}U
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <div class="card">
       <div class="card-head">
@@ -1018,6 +1049,20 @@
 </div>
 
 <style>
+
+  .rack-here {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .rack-here-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12.5px;
+    align-items: flex-start;
+  }
 
   .drawer-maps {
     display: flex;

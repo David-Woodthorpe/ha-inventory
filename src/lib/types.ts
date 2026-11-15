@@ -109,7 +109,20 @@ export interface RackMount {
   u_height: number;
   /** For an item: whether it is stored in this rack or below it. */
   stored_here: boolean;
+  /** For an item: how many components are fitted into it. */
+  fitted_units: number;
+  fitted_types: number;
   note: string | null;
+}
+
+/** Where one item sits in a rack, for showing on the item page. */
+export interface ItemRackMount {
+  rack: { id: string; name: string; path_label: string };
+  units: number;
+  u_start: number;
+  u_height: number;
+  /** The other devices, so the strip shows the cabinet rather than one line. */
+  slots: Array<{ name: string; u_start: number; u_height: number; is_this: boolean }>;
 }
 
 /** A rack and its elevation, ordered from the bottom slot upwards. */

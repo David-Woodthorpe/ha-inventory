@@ -343,7 +343,14 @@
                     {mount.code ?? mount.name.slice(0, 14)}
                   {/if}
                 </span>
-                <span class="rack-mount-u">U{mount.u_start}{mount.u_height > 1 ? `–${mount.u_start + mount.u_height - 1}` : ''}</span>
+                {#if mount.fitted_units > 0}
+                  <span class="rack-mount-fitted">{mount.fitted_units} fitted</span>
+                {/if}
+                {#if mount.u_height > 1}
+                  <span class="rack-mount-u">
+                    U{mount.u_start}–{mount.u_start + mount.u_height - 1}
+                  </span>
+                {/if}
                 {#if mount.type === 'location'}
                   <span class="rack-mount-tag">shelf</span>
                 {:else if !mount.stored_here}
@@ -355,8 +362,9 @@
         </div>
         <p class="small muted" style="margin-top: 10px;">
           Click an empty slot to start a mount there. Drag a mounted device to move it, or focus it and
-          use ↑ ↓; <kbd>Delete</kbd> takes it out. Rack shelves are locations, so their own contents live
-          inside them.
+          use ↑ ↓; <kbd>Delete</kbd> takes it out. Mount equipment as an <strong>item</strong> — its fitted
+          parts are shown on the block — and a plain divider shelf as a <strong>location</strong> if it
+          holds loose stock.
         </p>
       </div>
     </div>
@@ -438,6 +446,9 @@
                       <span class="badge badge-low" title="Stored elsewhere in the inventory">
                         stored elsewhere
                       </span>
+                    {/if}
+                    {#if mount.fitted_units > 0}
+                      <span class="badge">{mount.fitted_units} fitted</span>
                     {/if}
                   </span>
                   <form method="POST" action="?/unmountDevice">
@@ -636,6 +647,13 @@
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     flex: none;
+  }
+
+  .rack-mount-fitted {
+    flex: none;
+    font-size: 9.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
 
   .rack-mount-tag {

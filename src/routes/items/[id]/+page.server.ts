@@ -4,6 +4,7 @@ import { serviceCalendarEnabled, serviceCalendarEntity } from '$lib/server/confi
 import { ApiError } from '$lib/server/errors';
 import { adjustStock, deleteItem, getItem, listItemChoices, updateItem } from '$lib/server/items';
 import { drawerMapFor } from '$lib/server/layout';
+import { rackMountForItem } from '$lib/server/rack';
 import { getLocations } from '$lib/server/locations';
 import { todayDate } from '$lib/server/serialize';
 import {
@@ -40,6 +41,7 @@ export function load({ params }: { params: { id: string } }) {
       ...entry.drawerMap,
       highlight: entry.highlight
     })),
+    rackMount: rackMountForItem(item.id),
     items: listItemChoices(),
     locations,
     locationPublished,

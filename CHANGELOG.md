@@ -4,6 +4,17 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.14.0 — 2026-11-15
+
+- **Fitted parts show on the rack.** A device with components installed — a disk shelf full of drives —
+  now reads `2 fitted` on its block and in the mounted list, so a cabinet shows at a glance which
+  shelves are populated and which are empty.
+- **An item page shows its rack slot.** An item mounted in a rack gets an *In the rack* card: a strip
+  of the cabinet with its own slot picked out and its U range, the rack equivalent of the drawer mini
+  map. Open a disk shelf and see where it sits as well as what is in it.
+- **Tidier short devices.** A 1U block no longer squeezes a slot label next to a truncated name; the U
+  range stays in the tooltip, the gutter and the list below.
+
 ## 1.13.0 — 2026-11-15
 
 - **The rack elevation is now interactive.** Select a mounted device and drag it up or down the

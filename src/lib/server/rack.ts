@@ -3,7 +3,7 @@ import { db, nowIso, transaction } from './db';
 import { badRequest, conflict, notFound } from './errors';
 import { getLocation, getLocations } from './locations';
 import { rackSchema, parseWith } from './schemas';
-import type { RackMount, RackView } from '$lib/types';
+import type { ItemRackMount, RackMount, RackView } from '$lib/types';
 
 interface RackRow {
   id: string;
@@ -42,6 +42,18 @@ function readMounts(rackId: string): RackMount[] {
     .all() as Array<{ id: string; name: string; sku: string | null; location_id: string | null }>;
   const items = new Map(itemRows.map((row) => [row.id, row]));
 
+  // How much is fitted into each mounted host, so a disk shelf can show that it
+  // holds two drives rather than looking empty.
+  const fittedRows = db
+    .prepare(
+      `SELECT host_item_id, COUNT(*) AS types, COALESCE(SUM(quantity), 0) AS units
+       FROM item_allocations GROUP BY host_item_id`
+    )
+    .all() as Array<{ host_item_id: string; types: number; units: number }>;
+  const fitted = new Map(
+    fittedRows.map((row) => [row.host_item_id, { types: Number(row.types), units: Number(row.units) }])
+  );
+
   return rows.map((row) => {
     if (row.item_id) {
       const item = items.get(row.item_id);
@@ -54,6 +66,8 @@ function readMounts(rackId: string): RackMount[] {
         u_start: row.u_start,
         u_height: row.u_height,
         stored_here: isInsideRack(item?.location_id ?? null, locations.get(rackId) ?? { id: rackId, path_ids: [] }),
+        fitted_units: fitted.get(row.item_id)?.units ?? 0,
+        fitted_types: fitted.get(row.item_id)?.types ?? 0,
         note: row.note
       };
     }
@@ -67,6 +81,8 @@ function readMounts(rackId: string): RackMount[] {
       u_start: row.u_start,
       u_height: row.u_height,
       stored_here: true,
+      fitted_units: 0,
+      fitted_types: 0,
       note: row.note
     };
   });
@@ -323,6 +339,40 @@ export function moveRackMount(
     mountId
   );
   return getRack(locationId);
+}
+
+/**
+ * The rack an item is mounted in, if it is mounted in one.
+ *
+ * Used by the item page to show a strip of the cabinet with this device picked
+ * out, the way a bin on a drawer map is shown.
+ */
+export function rackMountForItem(itemId: string): ItemRackMount | null {
+  const row = db
+    .prepare(
+      `SELECT rack_location_id, u_start, u_height FROM rack_mounts
+       WHERE item_id = ? ORDER BY created_at ASC LIMIT 1`
+    )
+    .get(itemId) as { rack_location_id: string; u_start: number; u_height: number } | undefined;
+  if (!row) return null;
+
+  const locations = getLocations();
+  const rack = locations.find((entry) => entry.id === row.rack_location_id);
+  if (!rack || rack.rack_units === null) return null;
+
+  const mounts = readMounts(rack.id);
+  return {
+    rack: { id: rack.id, name: rack.name, path_label: rack.path_label },
+    units: rack.rack_units,
+    u_start: row.u_start,
+    u_height: row.u_height,
+    slots: mounts.map((mount) => ({
+      name: mount.name,
+      u_start: mount.u_start,
+      u_height: mount.u_height,
+      is_this: mount.type === 'item' && mount.ref_id === itemId
+    }))
+  };
 }
 
 /** Take one mount out, leaving everything else where it is. */
