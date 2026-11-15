@@ -26,7 +26,8 @@ Workshop
   into place, toggling each between portrait and landscape to fit. Bins are ordinary locations, so
   their items, photos and history travel with them. The map shows used and free cells, and any item
   still loose in the drawer can be put into the selected bin in a quantity you choose — handy when a
-  printed caddy holds only part of a stock lot and the rest belongs in the next one.
+  printed caddy holds only part of a stock lot and the rest belongs in the next one. An item page
+  shows the drawer it lives in with the holding bin highlighted, and links straight to that spot.
 - **Items** with quantity, unit, low-stock threshold, SKU, category, tags, supplier, optional price,
   manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
 - **Managed categories** — create, rename and delete categories in one place. Give each category a

@@ -8,6 +8,7 @@ import type {
   BinItem,
   DrawerBin,
   DrawerLayout,
+  DrawerMapSummary,
   Location,
   LooseItem,
   StagingArea
@@ -90,6 +91,45 @@ function quantitiesAt(locationId: string): Map<string, number> {
     .all(locationId, locationId) as Array<{ item_id: string; quantity: number }>;
 
   return new Map(rows.map((row) => [row.item_id, Number(row.quantity)]));
+}
+
+/**
+ * The grid a location is placed on, if it is placed on one.
+ *
+ * Used where the caller only knows the bin, such as an item page: it answers
+ * "which drawer, and where in it" without making the caller walk parents.
+ */
+export function drawerMapFor(locationId: string): Omit<DrawerMapSummary, 'highlight'> | null {
+  const locations = getLocations();
+  const byId = new Map(locations.map((entry) => [entry.id, entry]));
+  const location = byId.get(locationId);
+  if (
+    !location ||
+    !location.parent_id ||
+    location.grid_x === null ||
+    location.grid_y === null ||
+    location.grid_w === null ||
+    location.grid_h === null
+  ) {
+    return null;
+  }
+  const parent = byId.get(location.parent_id);
+  if (!parent || parent.grid_cols === null || parent.grid_rows === null) return null;
+
+  const layout = getLayout(parent.id);
+  return {
+    drawer: { id: parent.id, name: parent.name, path_label: parent.path_label },
+    cols: layout.cols ?? parent.grid_cols,
+    rows: layout.rows ?? parent.grid_rows,
+    bins: layout.bins.map((bin) => ({
+      location_id: bin.location_id,
+      name: bin.name,
+      x: bin.x,
+      y: bin.y,
+      w: bin.w,
+      h: bin.h
+    }))
+  };
 }
 
 /** The location marked as unsorted, with what is waiting in it. */

@@ -86,6 +86,16 @@ export interface LooseItem {
   loose_quantity: number;
 }
 
+/** A drawer's grid with one placed bin picked out, for showing on an item. */
+export interface DrawerMapSummary {
+  drawer: { id: string; name: string; path_label: string };
+  cols: number;
+  rows: number;
+  bins: Array<{ location_id: string; name: string; x: number; y: number; w: number; h: number }>;
+  /** Bins on this map that hold the item being viewed. */
+  highlight: string[];
+}
+
 /** The staging area: where parts wait until they are filed. */
 export interface StagingArea {
   location: Location;

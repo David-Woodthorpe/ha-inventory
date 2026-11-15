@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import type { PageData } from './$types';
+  import GridMapMini from '$lib/components/GridMapMini.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import UploadForm from '$lib/components/UploadForm.svelte';
   import { withBase } from '$lib/paths';
@@ -697,6 +698,39 @@
           <p class="small muted">No stock recorded in any location yet.</p>
         {/if}
 
+        {#if data.drawerMaps.length > 0}
+          <div class="drawer-maps">
+            {#each data.drawerMaps as map (map.drawer.id)}
+              <figure class="drawer-map">
+                <figcaption>
+                  <a
+                    class="link"
+                    href={h(`/locations/${map.drawer.id}/map${map.highlight[0] ? `?bin=${map.highlight[0]}` : ''}`)}
+                  >
+                    {map.drawer.name}
+                  </a>
+                  <span class="small muted">
+                    {map.drawer.path_label.split(' / ').slice(0, -1).join(' / ') || 'Top level'}
+                  </span>
+                </figcaption>
+                <GridMapMini
+                  cols={map.cols}
+                  rows={map.rows}
+                  bins={map.bins}
+                  highlight={map.highlight}
+                />
+                <figcaption class="small muted">
+                  {#if map.highlight.length === 1}
+                    In the highlighted bin
+                  {:else}
+                    In {map.highlight.length} highlighted bins
+                  {/if}
+                </figcaption>
+              </figure>
+            {/each}
+          </div>
+        {/if}
+
         {#if stockedLots.length > 0 && data.locations.length > 0}
           <div class="divider"></div>
           <form method="POST" action="?/transfer" class="stack-sm">
@@ -963,6 +997,28 @@
 </div>
 
 <style>
+
+  .drawer-maps {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+
+  .drawer-map {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .drawer-map figcaption {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 12.5px;
+  }
   .service-record {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);

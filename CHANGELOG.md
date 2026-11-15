@@ -4,6 +4,15 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.9.0 — 2026-11-15
+
+- **See where an item lives.** When an item sits in a bin on a drawer map, its page now draws that
+  drawer with the holding bin highlighted, under the list of locations. An item spread over two
+  bins shows both highlighted, and the drawer name links to the map with that bin already selected
+  — so "where does this actually go back?" is a glance rather than a search.
+- **Links land on the right bin.** A map URL can carry `?bin=<id>`, which selects that bin and opens
+  its contents, making the link from an item page a working shortcut.
+
 ## 1.8.0 — 2026-11-15
 
 - **An unsorted area.** Mark any location — the existing *Sorting Tray* is the obvious one — with

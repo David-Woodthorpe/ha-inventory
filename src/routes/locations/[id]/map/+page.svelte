@@ -44,8 +44,11 @@
   let dragTarget = $state<{ x: number; y: number } | null>(null);
   let message = $state<{ kind: 'ok' | 'error'; text: string } | null>(null);
   let busy = $state(false);
-  /** The bin the toolbar and the loose-item arrows act on. */
-  let selected = $state<string | null>(null);
+  /**
+   * The bin the toolbar and the loose-item arrows act on. A ?bin= parameter
+   * arrives from an item page, which links straight to the right bin.
+   */
+  let selected = $state<string | null>(page.url.searchParams.get('bin'));
   const selectedBin = $derived(bins.find((bin) => bin.location_id === selected) ?? null);
 
   /** The unsorted panel is a working mode, so it remembers being open. */

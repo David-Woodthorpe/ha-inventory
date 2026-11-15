@@ -3,6 +3,7 @@ import { createAttachment, deleteAttachment, getAttachment } from '$lib/server/a
 import { serviceCalendarEnabled, serviceCalendarEntity } from '$lib/server/config';
 import { ApiError } from '$lib/server/errors';
 import { adjustStock, deleteItem, getItem, listItemChoices, updateItem } from '$lib/server/items';
+import { drawerMapFor } from '$lib/server/layout';
 import { getLocations } from '$lib/server/locations';
 import { todayDate } from '$lib/server/serialize';
 import {
@@ -22,8 +23,23 @@ export function load({ params }: { params: { id: string } }) {
   const locationPublished = location
     ? location.path_ids.every((id) => byId.get(id)?.ha_enabled)
     : null;
+  // Where each lot physically sits, for the little drawer maps on the page.
+  const maps = new Map<string, { drawerMap: NonNullable<ReturnType<typeof drawerMapFor>>; highlight: string[] }>();
+  for (const lot of item.stock) {
+    if (!lot.location_id || lot.quantity <= 0) continue;
+    const map = drawerMapFor(lot.location_id);
+    if (!map) continue;
+    const entry = maps.get(map.drawer.id) ?? { drawerMap: map, highlight: [] };
+    if (!entry.highlight.includes(lot.location_id)) entry.highlight.push(lot.location_id);
+    maps.set(map.drawer.id, entry);
+  }
+
   return {
     item,
+    drawerMaps: Array.from(maps.values()).map((entry) => ({
+      ...entry.drawerMap,
+      highlight: entry.highlight
+    })),
     items: listItemChoices(),
     locations,
     locationPublished,
