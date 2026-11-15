@@ -668,7 +668,7 @@ repository.yaml, config.yaml   Home Assistant add-on repository metadata
 DOCS.md                        Home Assistant add-on documentation
 CHANGELOG.md                   Release notes shown on the add-on page
 AGENTS.md                      Doc-sync checklist for AI assistants
-docs/                          Design notes for work not yet started (see label-printing.md)
+docs/                          Design notes for work not yet started (label-printing.md, rack-power.md)
 data/                          SQLite database and uploads (gitignored)
 ```
 
