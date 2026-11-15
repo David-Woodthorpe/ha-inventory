@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { ApiError } from '$lib/server/errors';
 import { listItemChoices } from '$lib/server/items';
 import { getLocations } from '$lib/server/locations';
-import { addRackMount, getRack, removeRackMount } from '$lib/server/rack';
+import { addRackMount, getRack, moveRackMount, removeRackMount } from '$lib/server/rack';
 
 export function load({ params }: { params: { id: string } }) {
   const rack = getRack(params.id);
@@ -52,6 +52,24 @@ export const actions = {
         u_height: uHeight === '' ? 1 : uHeight
       });
       return { success: 'Mounted' };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  /** Move or resize one mount, as a drag or an arrow key does. */
+  moveMount: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    const mountId = String(form.get('mount_id') ?? '');
+    const uStart = form.get('u_start');
+    const uHeight = form.get('u_height');
+    if (!mountId) return fail(400, { error: 'No mount to move' });
+    try {
+      moveRackMount(params.id, mountId, {
+        u_start: uStart === null ? undefined : uStart,
+        u_height: uHeight === null ? undefined : uHeight
+      });
+      return { success: 'Moved' };
     } catch (error) {
       return actionFailure(error);
     }

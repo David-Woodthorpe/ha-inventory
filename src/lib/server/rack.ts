@@ -265,6 +265,66 @@ export function addRackMount(locationId: string, input: unknown): RackView {
   return getRack(locationId);
 }
 
+/**
+ * Move one mount to a different slot, or resize it.
+ *
+ * The rest of the rack is left alone, so this is the counterpart to a drag: it
+ * validates the new position against everything else without rewriting rows
+ * that did not move.
+ */
+export function moveRackMount(
+  locationId: string,
+  mountId: string,
+  input: { u_start?: unknown; u_height?: unknown }
+): RackView {
+  const location = requireRack(locationId);
+  const row = db
+    .prepare(
+      `SELECT id, item_id, location_id, u_start, u_height, note
+       FROM rack_mounts WHERE id = ? AND rack_location_id = ?`
+    )
+    .get(mountId, locationId) as
+    | { id: string; item_id: string | null; location_id: string | null; u_start: number; u_height: number; note: string | null }
+    | undefined;
+  if (!row) throw notFound('Mount', mountId);
+
+  const uStart = input.u_start === undefined ? row.u_start : Number(input.u_start);
+  const uHeight = input.u_height === undefined ? row.u_height : Number(input.u_height);
+  if (!Number.isInteger(uStart) || uStart < 1) {
+    throw badRequest('A slot number must be a whole number from 1 upwards');
+  }
+  if (!Number.isInteger(uHeight) || uHeight < 1) {
+    throw badRequest('A device needs a whole number of U');
+  }
+
+  const existing = db
+    .prepare('SELECT id, item_id, location_id FROM rack_mounts WHERE rack_location_id = ?')
+    .all(locationId) as Array<{ id: string; item_id: string | null; location_id: string | null }>;
+
+  validateMounts(
+    { id: location.id, units: location.units },
+    [
+      {
+        item_id: row.item_id,
+        location_id: row.location_id,
+        u_start: uStart,
+        u_height: uHeight,
+        note: row.note
+      }
+    ],
+    existing,
+    new Set([mountId])
+  );
+
+  db.prepare('UPDATE rack_mounts SET u_start = ?, u_height = ?, updated_at = ? WHERE id = ?').run(
+    uStart,
+    uHeight,
+    nowIso(),
+    mountId
+  );
+  return getRack(locationId);
+}
+
 /** Take one mount out, leaving everything else where it is. */
 export function removeRackMount(locationId: string, mountId: string): RackView {
   const row = db

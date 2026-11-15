@@ -1,5 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { deserialize } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
   import Icon from '$lib/components/Icon.svelte';
   import { plural } from '$lib/format';
@@ -39,7 +41,142 @@
     uStart + uHeight - 1 > 0 ? `U${uStart}` + (uHeight > 1 ? `–U${uStart + uHeight - 1}` : '') : ''
   );
 
+  /** The mount the toolbar acts on: drag it, nudge it with the arrows, unmount it. */
+  let selected = $state<string | null>(null);
+  const selectedMount = $derived(rack.mounts.find((mount) => mount.id === selected) ?? null);
 
+  let dragging = $state<{
+    id: string;
+    pointerId: number;
+    startY: number;
+    unitPx: number;
+    fromU: number;
+    height: number;
+  } | null>(null);
+  let dragTarget = $state<number | null>(null);
+  let bodyEl = $state<HTMLDivElement | null>(null);
+  let busy = $state(false);
+  let message = $state<{ kind: 'ok' | 'error'; text: string } | null>(null);
+
+  /** True when a mount at this slot would collide with, or overrun, the rack. */
+  function blocked(mountId: string, u: number, height: number): string | null {
+    const top = u + height - 1;
+    if (u < 1) return 'That is below the bottom of the rack.';
+    if (top > units) return `A ${height}U device would run past U${units}.`;
+    for (const other of rack.mounts) {
+      if (other.id === mountId) continue;
+      const otherTop = other.u_start + other.u_height - 1;
+      if (u <= otherTop && top >= other.u_start) {
+        return `That slot is taken by “${other.name}”.`;
+      }
+    }
+    return null;
+  }
+
+  async function postAction(action: string, fields: Record<string, string>, okText: string) {
+    busy = true;
+    message = null;
+    try {
+      const body = new FormData();
+      for (const [key, value] of Object.entries(fields)) body.set(key, value);
+      const response = await fetch(`?/${action}`, {
+        method: 'POST',
+        body,
+        headers: { 'x-sveltekit-action': 'true' }
+      });
+      const result = deserialize(await response.text());
+      if (result.type === 'failure') {
+        message = {
+          kind: 'error',
+          text: (result.data as { error?: string } | undefined)?.error ?? 'That change was refused.'
+        };
+      } else {
+        message = { kind: 'ok', text: okText };
+      }
+      await invalidateAll();
+    } catch {
+      message = { kind: 'error', text: 'Could not reach the server. Nothing changed.' };
+    } finally {
+      busy = false;
+    }
+  }
+
+  function beginDrag(event: PointerEvent, mount: (typeof rack.mounts)[number]) {
+    selected = mount.id;
+    if (event.button !== 0 || !bodyEl) return;
+    const rect = bodyEl.getBoundingClientRect();
+    if (rect.height === 0) return;
+    dragging = {
+      id: mount.id,
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      unitPx: rect.height / Math.max(1, units),
+      fromU: mount.u_start,
+      height: mount.u_height
+    };
+    dragTarget = mount.u_start;
+    try {
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    } catch {
+      /* capture is an optimisation */
+    }
+  }
+
+  function moveDrag(event: PointerEvent) {
+    if (!dragging || event.pointerId !== dragging.pointerId) return;
+    // The rack is counted upwards, so dragging up increases the slot.
+    const delta = -Math.round((event.clientY - dragging.startY) / dragging.unitPx);
+    dragTarget = Math.min(
+      units - dragging.height + 1,
+      Math.max(1, dragging.fromU + delta)
+    );
+  }
+
+  function endDrag(event: PointerEvent, mount: (typeof rack.mounts)[number]) {
+    if (!dragging || event.pointerId !== dragging.pointerId) return;
+    const target = dragTarget;
+    dragging = null;
+    dragTarget = null;
+    if (target === null || target === mount.u_start) return;
+    const problem = blocked(mount.id, target, mount.u_height);
+    if (problem) {
+      message = { kind: 'error', text: problem };
+      return;
+    }
+    void postAction(
+      'moveMount',
+      { mount_id: mount.id, u_start: String(target) },
+      `“${mount.name}” moved to U${target}`
+    );
+  }
+
+  /** Arrow keys move a focused mount; Delete removes it. */
+  function onMountKeydown(event: KeyboardEvent, mount: (typeof rack.mounts)[number]) {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const target = mount.u_start + (event.key === 'ArrowUp' ? 1 : -1);
+      const problem = blocked(mount.id, target, mount.u_height);
+      if (problem) {
+        message = { kind: 'error', text: problem };
+        return;
+      }
+      void postAction(
+        'moveMount',
+        { mount_id: mount.id, u_start: String(target) },
+        `“${mount.name}” moved to U${target}`
+      );
+      return;
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      unmount(mount);
+    }
+  }
+
+  function unmount(mount: (typeof rack.mounts)[number]) {
+    if (!confirm(`Take “${mount.name}” out of the rack? Its contents stay where they are.`)) return;
+    void postAction('unmountDevice', { mount_id: mount.id }, `“${mount.name}” removed from the rack`);
+  }
 </script>
 
 <svelte:head>
@@ -83,7 +220,18 @@
   </a>
 </nav>
 
-{#if form?.error}
+{#if message}
+  <div
+    class="alert"
+    class:alert-success={message.kind === 'ok'}
+    class:alert-error={message.kind === 'error'}
+    role="status"
+    style="margin-bottom: 18px;"
+  >
+    <Icon name={message.kind === 'ok' ? 'check' : 'alert'} size={17} />
+    {message.text}
+  </div>
+{:else if form?.error}
   <div class="alert alert-error" role="alert" style="margin-bottom: 18px;">
     <Icon name="alert" size={17} />
     {form.error}
@@ -115,6 +263,30 @@
         <h2>Elevation</h2>
         <span class="badge">{rack.used_units} of {units}U used</span>
       </div>
+
+      {#if selectedMount}
+        <div class="rack-toolbar">
+          <span class="rack-toolbar-name">{selectedMount.name}</span>
+          <span class="badge badge-outline mono">
+            U{selectedMount.u_start}{selectedMount.u_height > 1
+              ? `–${selectedMount.u_start + selectedMount.u_height - 1}`
+              : ''}
+          </span>
+          <span class="badge">{selectedMount.u_height}U</span>
+          <button
+            class="btn btn-sm"
+            type="button"
+            onclick={() => unmount(selectedMount)}
+            disabled={busy}
+          >
+            <Icon name="minus" size={14} /> Unmount
+          </button>
+          <button class="btn btn-sm btn-ghost" type="button" onclick={() => (selected = null)}>
+            <Icon name="x" size={14} />
+          </button>
+        </div>
+      {/if}
+
       <div class="card-body">
         <div class="rack" style={`--units: ${units};`}>
           <div class="rack-gutter" aria-hidden="true">
@@ -122,7 +294,12 @@
               <span class:every-five={u % 5 === 0}>{u}</span>
             {/each}
           </div>
-          <div class="rack-body" role="group" aria-label={`${units} unit rack elevation`}>
+          <div
+            class="rack-body"
+            bind:this={bodyEl}
+            role="group"
+            aria-label={`${units} unit rack elevation`}
+          >
             {#each rows as u (u)}
               <button
                 type="button"
@@ -135,13 +312,29 @@
             {/each}
 
             {#each rack.mounts as mount (mount.id)}
-              <div
+              <button
+                type="button"
                 class="rack-mount"
                 class:is-shelf={mount.type === 'location'}
-                class:selected={uStart <= mount.u_start + mount.u_height - 1 &&
-                  uStart + uHeight - 1 >= mount.u_start}
-                style={`bottom: calc(${mount.u_start - 1} * var(--u)); height: calc(${mount.u_height} * var(--u));`}
+                class:dragging={dragging?.id === mount.id}
+                class:blocked={dragging?.id === mount.id && dragTarget !== null &&
+                  blocked(mount.id, dragTarget, mount.u_height) !== null}
+                class:selected={selected === mount.id ||
+                  (dragging?.id === mount.id && dragTarget !== null)}
+                style={`bottom: calc(${(dragging?.id === mount.id && dragTarget !== null
+                  ? dragTarget
+                  : mount.u_start) - 1} * var(--u)); height: calc(${mount.u_height} * var(--u));`}
                 title={`${mount.name} — U${mount.u_start}${mount.u_height > 1 ? `–U${mount.u_start + mount.u_height - 1}` : ''}`}
+                onpointerdown={(event) => beginDrag(event, mount)}
+                onpointermove={moveDrag}
+                onpointerup={(event) => endDrag(event, mount)}
+                onpointercancel={() => {
+                  dragging = null;
+                  dragTarget = null;
+                }}
+                onfocus={() => (selected = mount.id)}
+                onclick={() => (selected = mount.id)}
+                onkeydown={(event) => onMountKeydown(event, mount)}
               >
                 <span class="rack-mount-name">
                   {#if mount.u_height >= 2}
@@ -156,13 +349,14 @@
                 {:else if !mount.stored_here}
                   <span class="rack-mount-warn" title="Stored elsewhere in the inventory">!</span>
                 {/if}
-              </div>
+              </button>
             {/each}
           </div>
         </div>
         <p class="small muted" style="margin-top: 10px;">
-          Click an empty slot to start a mount there. Rack shelves are locations, so their own contents
-          live inside them.
+          Click an empty slot to start a mount there. Drag a mounted device to move it, or focus it and
+          use ↑ ↓; <kbd>Delete</kbd> takes it out. Rack shelves are locations, so their own contents live
+          inside them.
         </p>
       </div>
     </div>
@@ -339,6 +533,21 @@
     cursor: crosshair;
   }
 
+  .rack-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .rack-toolbar-name {
+    font-weight: 650;
+    font-size: 13px;
+  }
+
   .rack-slot {
     position: absolute;
     left: 0;
@@ -383,8 +592,34 @@
     color: var(--text-soft);
   }
 
+  .rack-mount {
+    font: inherit;
+    text-align: left;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
   .rack-mount.selected {
     box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  .rack-mount.dragging {
+    cursor: grabbing;
+    opacity: 0.9;
+    z-index: 3;
+    box-shadow: var(--shadow);
+  }
+
+  .rack-mount.blocked {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  .rack-mount:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .rack-mount-name {

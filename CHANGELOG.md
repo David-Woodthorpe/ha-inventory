@@ -4,6 +4,19 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.13.0 — 2026-11-15
+
+- **The rack elevation is now interactive.** Select a mounted device and drag it up or down the
+  cabinet: the block snaps to whole U, turns red where it would collide, and saves as soon as you let
+  go. Or focus it and use ↑ ↓ to nudge it a slot at a time. Click an empty slot to start a new mount
+  there, as before.
+- **Unmount is where you can see it.** Selecting a device shows a toolbar with its name, slot range and
+  height, and an **Unmount** button — no more hunting for the list further down the page. `Delete` does
+  the same from the keyboard, and the confirmation says the contents stay put.
+- **Racks refuse to lie while you drag.** Overlapping another device, running past the top or dropping
+  below U1 is shown as blocked on the block itself, with the reason in a message instead of a silent
+  refusal after the save.
+
 ## 1.12.0 — 2026-11-15
 
 - **Signed-out parts are findable from the items list.** An item installed in another item now shows a
