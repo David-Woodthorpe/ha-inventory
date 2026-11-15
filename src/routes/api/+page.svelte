@@ -9,7 +9,7 @@
   const h = (path: string) => withBase(page.data.ingressPath ?? '', path);
   const base = $derived(`${data.origin}/api/v1`);
 
-  type Endpoint = { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; path: string; desc: string };
+  type Endpoint = { method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: string; desc: string };
 
   const groups: Array<{ title: string; icon: string; endpoints: Endpoint[] }> = [
     {
@@ -72,8 +72,10 @@
         { method: 'GET', path: '/locations', desc: 'Flat list or ?tree=true' },
         { method: 'POST', path: '/locations', desc: 'Create, optionally nested' },
         { method: 'GET', path: '/locations/{id}', desc: 'Location with children' },
-        { method: 'PATCH', path: '/locations/{id}', desc: 'Rename or move' },
-        { method: 'DELETE', path: '/locations/{id}', desc: 'Only when empty (409)' }
+        { method: 'PATCH', path: '/locations/{id}', desc: 'Rename, move, or set grid_cols/grid_rows' },
+        { method: 'DELETE', path: '/locations/{id}', desc: 'Only when empty (409)' },
+        { method: 'GET', path: '/locations/{id}/layout', desc: 'Grid map: bins, unplaced bins, loose items' },
+        { method: 'PUT', path: '/locations/{id}/layout', desc: 'Replace bin placements, including rotation' }
       ]
     },
     {

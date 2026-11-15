@@ -37,6 +37,7 @@ ${auth}
 - Upload photos/manuals with POST /attachments as multipart/form-data (file, item_id or location_id, kind=photo|document, caption).
 - Log maintenance with POST /items/{id}/service. Each service record has a date and optional notes, cost and receipt uploads. Service schedules are optional per item.
 - Locations are a tree. Create nested locations by passing parent_id. GET /locations?tree=true returns the tree.
+- A drawer or tray that is divided into cells is a grid map: set grid_cols and grid_rows on the container, then place its child locations as bins with PUT /locations/{id}/layout. A bin is just a child location, so moving it to another drawer is PATCH /locations/{id} with parent_id — that clears its position, because cells belong to the old grid. Read the current arrangement with GET /locations/{id}/layout before changing it; the call replaces the whole map, so send every bin you want to keep.
 - Categories are managed records. Create one with POST /categories, then use its name as the item's "category". Each category can have a built-in icon and an uploaded image; items without a photo expose category_icon and category_image_url as display fallbacks. Renaming a category updates its items.
 - Responses are {"data": ...} on success and {"error": {"code","message","details"}} on failure. HTTP status codes are meaningful.
 - List endpoints are paginated with limit/offset and return pagination.total + pagination.has_more.
@@ -66,8 +67,10 @@ DELETE /items/{id}/service/{recordId}
 GET    /locations?tree=true
 POST   /locations                       ({"name":"Drawer 1a","parent_id":"..."})
 GET    /locations/{id}
-PATCH  /locations/{id}
+PATCH  /locations/{id}                  (rename, move, or set grid_cols/grid_rows)
 DELETE /locations/{id}
+GET    /locations/{id}/layout           (grid size, placed bins, unplaced bins, loose items)
+PUT    /locations/{id}/layout           ({"bins":[{"location_id":"...","x":0,"y":0,"w":1,"h":2,"rotation":0}]}; replaces the map)
 GET    /categories                        (with item counts, icons and image URLs)
 POST   /categories                        ({"name":"Resistors","icon":"cpu"})
 GET    /categories/{id}
@@ -111,6 +114,29 @@ ${pricingFields}  "datasheet_url": "https://...",
   "service_notes": "Replace the battery"  // optional
 }
 
+## Grid maps
+
+A drawer, tray or shelf that is divided into cells gets a map. The container holds the grid
+size; each bin is one of its child locations, holding a footprint and a position.
+
+- Set the grid on the container: PATCH /locations/{id} with {"grid_cols":5,"grid_rows":8}.
+- Place bins with PUT /locations/{id}/layout. The body is the whole map; anything omitted
+  becomes unplaced (still listed in unplaced_bins, still holding its items).
+- Coordinates are zero-based cells counted from the front-left corner of the container:
+  x grows to the right, y grows away from the front. A 5x8 drawer therefore spans x 0-4 and
+  y 0-7.
+- w and h are the bin's own footprint in cells, before rotation. rotation is 0, 90, 180 or
+  270 degrees and swaps the effective footprint at 90 and 270, so a 1x2 bin turned 90 degrees
+  occupies 2 cells across and 1 deep.
+- Overlaps, footprints outside the grid and locations that are not children of the container
+  are rejected (409 or 400). Shrinking a grid that would leave a bin hanging over the edge is
+  rejected too.
+- One bin may hold several different items. Record the position inside the bin with an item
+  custom field ({"slot": 2}) rather than creating a location per compartment.
+- Items sitting directly in the container, not in any bin, come back as loose_items.
+- Bins are ordinary locations, so they keep their items, photos and history wherever they
+  are placed; moving one to another drawer is PATCH /locations/{id} with parent_id.
+
 ## Examples
 
 Create a location:
@@ -132,6 +158,15 @@ Split stock across locations:
 curl -X POST ${base}/items/<id>/transfer \\
   -H 'Content-Type: application/json' \\
   -d '{"from_location_id":"<drawer-a-id>","to_location_id":"<drawer-b-id>","quantity":40}'
+
+Lay out a 5x8 drawer with two bins:
+curl -X PATCH ${base}/locations/<drawer-id> \\
+  -H 'Content-Type: application/json' \\
+  -d '{"grid_cols":5,"grid_rows":8}'
+curl -X PUT ${base}/locations/<drawer-id>/layout \\
+  -H 'Content-Type: application/json' \\
+  -d '{"bins":[{"location_id":"<dimm-bin-id>","x":0,"y":0,"w":2,"h":2},
+               {"location_id":"<cap-bin-id>","x":2,"y":0,"w":1,"h":2,"rotation":90}]}'
 
 Install a component in another item, then return it:
 curl -X POST ${base}/items/<host-id>/components \\
@@ -160,6 +195,7 @@ curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
 - Quantities are numbers and may be fractional (e.g. 2.5 metres of wire).
 - item.quantity is the total across all locations and item.location_id is the primary (largest) lot. GET /items/{id} also returns "stock" (one entry per location) plus "components" (parts installed here) and "assigned_to" (hosts this item is installed in).
 - Transfers keep the total unchanged and are recorded in the movement history with the source and destination locations.
+- A drawer map is layout only: placing, turning or moving a bin never changes any quantity. Bins hold items through the ordinary location field, so item.location_id is the bin.
 - low_stock is true when min_quantity > 0 and quantity <= min_quantity.
 - item.category_icon and item.category_image_url are display fallbacks from the managed category. Use category_image_url first, then category_icon, when the item has no photo.
 - service_due is true when service_next_due is today or in the past. Logging a service on an item with service_interval_months advances service_next_due from the latest record date.

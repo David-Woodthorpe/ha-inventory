@@ -447,7 +447,13 @@ export const openapi = {
                 type: 'boolean',
                 default: false,
                 description: 'Publish this location to Home Assistant. New locations default to false.'
-              }
+              },
+              grid_cols: {
+                type: 'integer',
+                nullable: true,
+                description: 'Turn this location into a grid map with this many cells across'
+              },
+              grid_rows: { type: 'integer', nullable: true, description: 'Cells front to back' }
             }
           })
         },
@@ -493,7 +499,9 @@ export const openapi = {
                 type: 'boolean',
                 description:
                   'Publish this location to Home Assistant. Turning it off also hides its sublocations. Individually published items stay visible.'
-              }
+              },
+              grid_cols: { type: 'integer', nullable: true },
+              grid_rows: { type: 'integer', nullable: true }
             }
           })
         },
@@ -510,6 +518,58 @@ export const openapi = {
           '204': { description: 'Deleted' },
           '404': errorResponses['404'],
           '409': errorResponses['409']
+        }
+      }
+    },
+    '/locations/{id}/layout': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Locations'],
+        summary: 'Read the grid map of a drawer or other partitioned container',
+        description:
+          'Returns the grid size, every placed bin with its origin and rotated footprint, the child locations that are not placed yet, and any items sitting in the container outside a bin. Cells are counted from the front-left corner: x grows to the right, y grows away from the front. A location without grid_cols/grid_rows returns null dimensions and no bins.',
+        responses: {
+          '200': { description: 'Layout', content: json({ type: 'object', properties: { data: ref('DrawerLayout') } }) },
+          '404': errorResponses['404']
+        }
+      },
+      put: {
+        tags: ['Locations'],
+        summary: 'Replace the placements on a grid map',
+        description:
+          'The payload is a whole map, not a patch: any child left out becomes unplaced. Overlaps, out-of-bounds footprints and children of another location are rejected (409/400). Send {"bins": []} to clear the map. Bins are child locations, so moving one to another drawer is PATCH /locations/{id} with parent_id, which clears its position.',
+        requestBody: {
+          required: true,
+          content: json({
+            type: 'object',
+            required: ['bins'],
+            properties: {
+              bins: {
+                type: 'array',
+                maxItems: 500,
+                items: {
+                  type: 'object',
+                  required: ['location_id', 'x', 'y', 'w', 'h'],
+                  properties: {
+                    location_id: { type: 'string', format: 'uuid' },
+                    x: { type: 'integer', minimum: 0 },
+                    y: { type: 'integer', minimum: 0 },
+                    w: { type: 'integer', minimum: 1 },
+                    h: { type: 'integer', minimum: 1 },
+                    rotation: {
+                      type: 'integer',
+                      enum: [0, 90, 180, 270],
+                      description: 'Rotation in degrees. 90 and 270 swap the effective width and depth.'
+                    }
+                  }
+                }
+              }
+            }
+          })
+        },
+        responses: {
+          '200': { description: 'Saved layout', content: json({ type: 'object', properties: { data: ref('DrawerLayout') } }) },
+          ...errorResponses
         }
       }
     },
@@ -838,8 +898,68 @@ export const openapi = {
           total_item_count: { type: 'integer' },
           child_count: { type: 'integer' },
           ha_enabled: { type: 'boolean' },
+          grid_cols: {
+            type: 'integer',
+            nullable: true,
+            description: 'Grid map width in cells. Null when this location has no map.'
+          },
+          grid_rows: {
+            type: 'integer',
+            nullable: true,
+            description: 'Grid map depth in cells. Null when this location has no map.'
+          },
+          grid_x: { type: 'integer', nullable: true, description: 'Placement origin cell within the parent grid' },
+          grid_y: { type: 'integer', nullable: true },
+          grid_w: { type: 'integer', nullable: true, description: 'Footprint width in cells, before rotation' },
+          grid_h: { type: 'integer', nullable: true },
+          grid_rot: {
+            type: 'integer',
+            enum: [0, 90, 180, 270],
+            description: 'Rotation of the bin in its parent grid, in degrees'
+          },
           created_at: { type: 'string', format: 'date-time' },
           updated_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      DrawerLayout: {
+        type: 'object',
+        description: 'The map of one partitioned container: its grid, its placed bins and what is still loose.',
+        properties: {
+          location: location,
+          cols: { type: 'integer', nullable: true },
+          rows: { type: 'integer', nullable: true },
+          used_cells: { type: 'integer' },
+          free_cells: { type: 'integer' },
+          bins: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                location_id: { type: 'string', format: 'uuid' },
+                name: { type: 'string' },
+                code: { type: 'string', nullable: true },
+                x: { type: 'integer' },
+                y: { type: 'integer' },
+                w: { type: 'integer', description: 'Effective width in cells, after rotation' },
+                h: { type: 'integer', description: 'Effective depth in cells, after rotation' },
+                base_w: { type: 'integer', description: 'Footprint width before rotation' },
+                base_h: { type: 'integer' },
+                rotation: { type: 'integer', enum: [0, 90, 180, 270] },
+                item_count: { type: 'integer' },
+                unit_count: { type: 'number' }
+              }
+            }
+          },
+          unplaced_bins: {
+            type: 'array',
+            items: location,
+            description: 'Child locations that exist but have no position on the grid yet'
+          },
+          loose_items: {
+            type: 'array',
+            items: item,
+            description: 'Items held by the container itself rather than by a bin'
+          }
         }
       },
       Category: {

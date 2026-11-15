@@ -4,6 +4,26 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.7.0 — 2026-11-15
+
+- **Drawer maps.** Any location can now be given a grid — a Bisley drawer full of
+  42 mm Gridfinity bins is 5 cells wide by 8 deep — and its bins arranged on a Map tab.
+  Drag a bin to another cell, or focus it and use the arrow keys; press `R` to turn it
+  90°, which is what lets an odd-sized bin fit. Positions are checked on the server, so
+  two bins can never be dropped on the same cell, and a bin cannot be pushed outside
+  the drawer. The map also reports how many cells are used and free, which is what makes
+  it useful for planning where the next part goes.
+- **Bins are locations.** A bin in a drawer is an ordinary sublocation with a position,
+  so it keeps its items, photos and history and can be moved to another drawer later —
+  its position is cleared and it waits in the unplaced list until you place it again.
+  One bin can hold several different items, which suits a printed caddy of DIMMs or a
+  shared value family.
+- **A drawer's loose items are visible.** Items that sit in a drawer rather than in a bin
+  are listed beside the map instead of quietly disappearing into the total.
+- **New API endpoints.** `GET /locations/{id}/layout` returns a drawer's grid, its placed
+  bins and anything unplaced; `PUT /locations/{id}/layout` replaces the whole map. Set
+  the grid itself with `PATCH /locations/{id}` and `grid_cols`/`grid_rows`.
+
 ## 1.6.0 — 2026-11-15
 
 - **Batch move between locations.** Tick several items on the Items page, choose a

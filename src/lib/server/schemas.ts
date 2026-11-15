@@ -27,6 +27,18 @@ const optionalBoolean = z
 
 const optionalId = z.preprocess(emptyToNull, z.string().trim().max(100).nullable()).optional();
 
+const optionalGridSize = z
+  .preprocess(
+    emptyToNull,
+    z.coerce
+      .number()
+      .int('Grid dimensions are counted in whole cells')
+      .min(1, 'A grid needs at least one cell')
+      .max(64, 'A grid is limited to 64 cells per side')
+      .nullable()
+  )
+  .optional();
+
 function normalizeDateString(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
@@ -195,7 +207,9 @@ export const locationCreateSchema = z.object({
   description: optionalText(2000),
   code: optionalText(60),
   sort_order: optionalNumber(Number.NEGATIVE_INFINITY),
-  ha_enabled: optionalBoolean
+  ha_enabled: optionalBoolean,
+  grid_cols: optionalGridSize,
+  grid_rows: optionalGridSize
 });
 
 export const locationUpdateSchema = z
@@ -205,11 +219,32 @@ export const locationUpdateSchema = z
     description: optionalText(2000),
     code: optionalText(60),
     sort_order: optionalNumber(Number.NEGATIVE_INFINITY),
-    ha_enabled: optionalBoolean
+    ha_enabled: optionalBoolean,
+    grid_cols: optionalGridSize,
+    grid_rows: optionalGridSize
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'Provide at least one field to update'
   });
+
+const gridRotation = z.preprocess(
+  (value) => (value === undefined || value === '' ? undefined : Number(value)),
+  z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional()
+);
+
+const gridPlacement = z.object({
+  location_id: z.string().trim().min(1, 'location_id is required'),
+  x: z.coerce.number().int().min(0),
+  y: z.coerce.number().int().min(0),
+  w: z.coerce.number().int().min(1).max(64),
+  h: z.coerce.number().int().min(1).max(64),
+  rotation: gridRotation
+});
+
+/** A whole drawer map, sent as a replacement: anything omitted becomes unplaced. */
+export const layoutSchema = z.object({
+  bins: z.array(gridPlacement).max(500, 'A single grid holds at most 500 bins')
+});
 
 export function parseWith<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
   const result = schema.safeParse(value);

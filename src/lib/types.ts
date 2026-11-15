@@ -21,12 +21,57 @@ export interface Location {
   total_item_count: number;
   child_count: number;
   ha_enabled: boolean;
+  /** Container grid dimensions in cells, or null when this location has no map. */
+  grid_cols: number | null;
+  grid_rows: number | null;
+  /** Placement of this location inside its parent's grid, or null when unplaced. */
+  grid_x: number | null;
+  grid_y: number | null;
+  /** Unrotated footprint of this location's bin, in cells. */
+  grid_w: number | null;
+  grid_h: number | null;
+  /** Rotation of the bin inside its cell footprint, in degrees. */
+  grid_rot: number;
   created_at: string;
   updated_at: string;
 }
 
 export interface LocationNode extends Location {
   children: LocationNode[];
+}
+
+/** A bin placed on its parent container's grid map. */
+export interface DrawerBin {
+  location_id: string;
+  name: string;
+  code: string | null;
+  /** Origin cell of the rotated footprint, zero-based, counted from the front-left. */
+  x: number;
+  y: number;
+  /** Effective footprint in cells, after rotation. */
+  w: number;
+  h: number;
+  /** The bin's own footprint, before rotation. */
+  base_w: number;
+  base_h: number;
+  /** Rotation in degrees: 0, 90, 180 or 270. */
+  rotation: number;
+  item_count: number;
+  unit_count: number;
+}
+
+/** The map of one partitioned container: its grid plus what is placed on it. */
+export interface DrawerLayout {
+  location: Location;
+  cols: number | null;
+  rows: number | null;
+  used_cells: number;
+  free_cells: number;
+  bins: DrawerBin[];
+  /** Child locations that exist but have no position on the grid yet. */
+  unplaced_bins: Location[];
+  /** Items held directly by the container, outside any bin. */
+  loose_items: Item[];
 }
 
 /** A managed category, optionally decorated with an icon or an image. */

@@ -227,6 +227,28 @@ const migrations: string[] = [
   FROM items
   WHERE category IS NOT NULL AND category <> ''
   GROUP BY category COLLATE NOCASE;
+  `,
+  // v7 — grid maps for drawers and other partitioned containers
+  //
+  // A container (a drawer, a tray) gets grid_cols x grid_rows; each child
+  // location that physically sits inside it gets a footprint and an origin
+  // cell. Placement lives on the child so that moving a bin between drawers is
+  // a single-row update, and so a bin can only appear on one grid at a time.
+  //
+  // grid_w/grid_h are the bin's unrotated footprint and grid_rot is the
+  // rotation in degrees (0, 90, 180 or 270); the effective footprint swaps w
+  // and h at 90 and 270. Storing rotation separately keeps the bin's own
+  // dimensions stable as it is turned to fit, which is the whole point of a
+  // Gridfinity-style tray. Columns stay nullable: a location without a grid is
+  // just a container, and a child without a footprint is simply not placed yet.
+  `
+  ALTER TABLE locations ADD COLUMN grid_cols INTEGER;
+  ALTER TABLE locations ADD COLUMN grid_rows INTEGER;
+  ALTER TABLE locations ADD COLUMN grid_x INTEGER;
+  ALTER TABLE locations ADD COLUMN grid_y INTEGER;
+  ALTER TABLE locations ADD COLUMN grid_w INTEGER;
+  ALTER TABLE locations ADD COLUMN grid_h INTEGER;
+  ALTER TABLE locations ADD COLUMN grid_rot INTEGER NOT NULL DEFAULT 0;
   `
 ];
 

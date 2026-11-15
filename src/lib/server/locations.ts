@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { db, nowIso, transaction } from './db';
-import { conflict, notFound } from './errors';
+import { conflict, notFound, badRequest } from './errors';
+import { effectiveFootprint, fitsInGrid, normaliseRotation } from '$lib/grid';
 import { locationCreateSchema, locationUpdateSchema, parseWith } from './schemas';
 import type { Location, LocationNode } from '$lib/types';
 
@@ -12,6 +13,13 @@ interface LocationRow {
   code: string | null;
   sort_order: number;
   ha_enabled: number;
+  grid_cols: number | null;
+  grid_rows: number | null;
+  grid_x: number | null;
+  grid_y: number | null;
+  grid_w: number | null;
+  grid_h: number | null;
+  grid_rot: number;
   created_at: string;
   updated_at: string;
 }
@@ -110,6 +118,13 @@ export function getLocations(): Location[] {
       total_item_count: totalSets.get(row.id)?.size ?? 0,
       child_count: childCounts.get(row.id) ?? 0,
       ha_enabled: Boolean(row.ha_enabled),
+      grid_cols: row.grid_cols ?? null,
+      grid_rows: row.grid_rows ?? null,
+      grid_x: row.grid_x ?? null,
+      grid_y: row.grid_y ?? null,
+      grid_w: row.grid_w ?? null,
+      grid_h: row.grid_h ?? null,
+      grid_rot: normaliseRotation(row.grid_rot),
       created_at: row.created_at,
       updated_at: row.updated_at
     } satisfies Location;
@@ -159,8 +174,8 @@ export function createLocation(input: unknown): Location {
   const id = randomUUID();
   const now = nowIso();
   db.prepare(
-    `INSERT INTO locations (id, name, parent_id, description, code, sort_order, ha_enabled, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO locations (id, name, parent_id, description, code, sort_order, ha_enabled, grid_cols, grid_rows, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     data.name,
@@ -169,6 +184,8 @@ export function createLocation(input: unknown): Location {
     data.code ?? null,
     data.sort_order ?? 0,
     data.ha_enabled ? 1 : 0,
+    data.grid_cols ?? null,
+    data.grid_rows ?? null,
     now,
     now
   );
@@ -190,6 +207,42 @@ export function updateLocation(id: string, input: unknown): Location {
     if (!parent) throw notFound('Parent location', data.parent_id);
   }
 
+  const nextCols = data.grid_cols === undefined ? existing.grid_cols : data.grid_cols;
+  const nextRows = data.grid_rows === undefined ? existing.grid_rows : data.grid_rows;
+  if ((nextCols === null) !== (nextRows === null)) {
+    throw badRequest('grid_cols and grid_rows must be set together, or both left empty');
+  }
+
+  const gridChanged = nextCols !== existing.grid_cols || nextRows !== existing.grid_rows;
+  if (gridChanged && nextCols !== null && nextRows !== null) {
+    // Shrinking a grid can leave currently placed bins hanging over the edge.
+    // Refuse the resize rather than silently dropping their positions.
+    const strays = db
+      .prepare(
+        `SELECT id, name, grid_x, grid_y, grid_w, grid_h, grid_rot FROM locations
+         WHERE parent_id = ? AND grid_x IS NOT NULL AND grid_y IS NOT NULL
+           AND grid_w IS NOT NULL AND grid_h IS NOT NULL`
+      )
+      .all(id) as Array<{
+        id: string;
+        name: string;
+        grid_x: number;
+        grid_y: number;
+        grid_w: number;
+        grid_h: number;
+        grid_rot: number;
+      }>;
+    const offending = strays
+      .filter((row) => !fitsInGrid(row.grid_x, row.grid_y, row.grid_w, row.grid_h, row.grid_rot, nextCols, nextRows))
+      .map((row) => ({ location_id: row.id, name: row.name }));
+    if (offending.length > 0) {
+      throw conflict(
+        `This grid cannot shrink to ${nextCols}x${nextRows}: ${offending.length} bin(s) would fall outside it. Move or remove those bins first.`,
+        { bins: offending }
+      );
+    }
+  }
+
   const fields: string[] = [];
   const values: unknown[] = [];
   const map: Array<[keyof typeof data, string]> = [
@@ -198,7 +251,9 @@ export function updateLocation(id: string, input: unknown): Location {
     ['description', 'description'],
     ['code', 'code'],
     ['sort_order', 'sort_order'],
-    ['ha_enabled', 'ha_enabled']
+    ['ha_enabled', 'ha_enabled'],
+    ['grid_cols', 'grid_cols'],
+    ['grid_rows', 'grid_rows']
   ];
   for (const [key, column] of map) {
     if (data[key] !== undefined) {
@@ -206,10 +261,28 @@ export function updateLocation(id: string, input: unknown): Location {
       values.push(key === 'ha_enabled' ? (data.ha_enabled ? 1 : 0) : data[key] === undefined ? null : data[key]);
     }
   }
+
+  // A placement describes a cell on the current parent's grid. Once the parent
+  // changes, those coordinates mean something different, so the bin loses its
+  // position — but its footprint and rotation belong to the bin itself and are
+  // kept, so a 2x2 caddy is still a 2x2 caddy in the next drawer.
+  const parentChanged = data.parent_id !== undefined && data.parent_id !== existing.parent_id && data.parent_id !== null;
+  if (parentChanged) {
+    fields.push('grid_x = NULL', 'grid_y = NULL');
+  }
+
   if (!fields.length) return existing;
   fields.push('updated_at = ?');
   values.push(nowIso(), id);
-  db.prepare(`UPDATE locations SET ${fields.join(', ')} WHERE id = ?`).run(...(values as never[]));
+
+  transaction(() => {
+    db.prepare(`UPDATE locations SET ${fields.join(', ')} WHERE id = ?`).run(...(values as never[]));
+    if (gridChanged && nextCols === null) {
+      // No grid, no positions: children keep their own footprint but are no
+      // longer placed anywhere.
+      db.prepare(`UPDATE locations SET grid_x = NULL, grid_y = NULL WHERE parent_id = ?`).run(id);
+    }
+  });
   return getLocation(id);
 }
 

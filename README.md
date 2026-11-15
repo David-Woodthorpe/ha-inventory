@@ -22,6 +22,9 @@ Workshop
 ## Features
 
 - **Arbitrarily nested locations** — rooms, shelves, drawers, bins; move a branch without breaking it.
+- **Drawer maps** — give any container a grid (a 42 mm Gridfinity drawer is 5 × 8) and drag its bins
+  into place, turning them 90° to fit. Bins are ordinary locations, so their items, photos and history
+  travel with them; the map also shows used and free cells and anything still loose in the drawer.
 - **Items** with quantity, unit, low-stock threshold, SKU, category, tags, supplier, optional price,
   manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
 - **Managed categories** — create, rename and delete categories in one place. Give each category a
@@ -507,8 +510,10 @@ empty `currencies` list, and `price`/`currency` fields on create or update reque
 | `GET` | `/locations` | Flat list; add `?tree=true` for a nested tree. |
 | `POST` | `/locations` | Create a location, optionally with `parent_id`. |
 | `GET` | `/locations/{id}` | Location, children and breadcrumb. |
-| `PATCH` | `/locations/{id}` | Rename or move a location. |
+| `PATCH` | `/locations/{id}` | Rename or move a location, or set its `grid_cols`/`grid_rows`. |
 | `DELETE` | `/locations/{id}` | Delete only when empty (`409` otherwise). |
+| `GET` | `/locations/{id}/layout` | Grid size, placed bins, unplaced bins and loose items for a drawer map. |
+| `PUT` | `/locations/{id}/layout` | Replace the bin placements: `{"bins":[{"location_id","x","y","w","h","rotation"}]}`. |
 | `GET` | `/categories` | Managed categories with item counts, icons and image URLs. |
 | `POST` | `/categories` | Create a category with a name, optional description and icon. |
 | `GET` | `/categories/{id}` | One category. |
