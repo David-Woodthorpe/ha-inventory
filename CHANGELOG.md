@@ -4,6 +4,15 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.7.2 — 2026-11-15
+
+- **Put away part of a stock lot.** A bin can now take a chosen quantity instead of everything. If
+  a DIMM tray holds eight sticks but you own twenty, move eight in, leave twelve loose on the map
+  and fill the next tray with those. The item then appears in both bins with its stock split
+  between them, and the loose list shows what is left here rather than the total on hand.
+- **Stock elsewhere is never dragged along.** Assigning from the map moves only the stock sitting
+  loose in that drawer, so a part that also lives in another drawer stays put.
+
 ## 1.7.1 — 2026-11-15
 
 - **Turning a bin is now a two-way toggle.** It used to step through four positions, two of

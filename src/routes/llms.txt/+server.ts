@@ -133,9 +133,10 @@ size; each bin is one of its child locations, holding a footprint and a position
   rejected too.
 - One bin may hold several different items. Record the position inside the bin with an item
   custom field ({"slot": 2}) rather than creating a location per compartment.
-- Items sitting directly in the container, not in any bin, come back as loose_items. Put one
-  away with POST /items/move ({"item_ids":["..."],"to_location_id":"<bin-id>"}); the map screen
-  does the same thing with one click per item once a bin is selected.
+- Items sitting directly in the container, not in any bin, come back as loose_items, each with
+  loose_quantity (what this container holds) and quantity (the total on hand). Put them away with
+  POST /items/{id}/transfer ({"from_location_id":"<container-id>","to_location_id":"<bin-id>",
+  "quantity":8}) when a bin only holds part of the stock, or POST /items/move to move everything.
 - Bins are ordinary locations, so they keep their items, photos and history wherever they
   are placed; moving one to another drawer is PATCH /locations/{id} with parent_id.
 

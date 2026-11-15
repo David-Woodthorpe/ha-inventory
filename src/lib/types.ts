@@ -60,6 +60,20 @@ export interface DrawerBin {
   unit_count: number;
 }
 
+/**
+ * An item sitting in a container rather than in one of its bins. The two
+ * quantities differ when only part of the stock lives in this container.
+ */
+export interface LooseItem {
+  id: string;
+  name: string;
+  unit: string;
+  /** Total on hand across every location. */
+  quantity: number;
+  /** How many of those are held by this container itself. */
+  loose_quantity: number;
+}
+
 /** The map of one partitioned container: its grid plus what is placed on it. */
 export interface DrawerLayout {
   location: Location;
@@ -71,7 +85,7 @@ export interface DrawerLayout {
   /** Child locations that exist but have no position on the grid yet. */
   unplaced_bins: Location[];
   /** Items held directly by the container, outside any bin. */
-  loose_items: Item[];
+  loose_items: LooseItem[];
 }
 
 /** A managed category, optionally decorated with an icon or an image. */

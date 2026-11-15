@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
   import Icon from '$lib/components/Icon.svelte';
@@ -11,7 +12,7 @@
     occupiedCells
   } from '$lib/grid';
   import { withBase } from '$lib/paths';
-  import type { DrawerBin } from '$lib/types';
+  import type { DrawerBin, LooseItem } from '$lib/types';
   import type { PageData } from './$types';
 
   type ActionResult = { success?: string; error?: string } | null;
@@ -62,9 +63,12 @@
       const body = new FormData();
       body.set('bins', JSON.stringify(next.map(payloadOf)));
       const response = await fetch('?/saveLayout', { method: 'POST', body });
-      const result = await response.json().catch(() => null);
-      if (result?.type === 'failure' || !response.ok) {
-        message = { kind: 'error', text: result?.data?.error ?? 'The server rejected that position.' };
+      const result = deserialize(await response.text());
+      if (result.type === 'failure') {
+        message = {
+          kind: 'error',
+          text: (result.data as { error?: string } | undefined)?.error ?? 'The server rejected that position.'
+        };
         await invalidateAll();
         return;
       }
@@ -81,27 +85,33 @@
    * Move a loose item into the selected bin without a full page reload, so the
    * selection survives and several items can be put away in a row.
    */
-  async function assignItem(event: SubmitEvent, item: { id: string; name: string }, bin: DrawerBin) {
+  async function assignItem(event: SubmitEvent, item: LooseItem, bin: DrawerBin) {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const body = new FormData(form);
+    const quantity = Number(body.get('quantity') ?? 0);
     busy = true;
     message = null;
     try {
-      const body = new FormData();
-      body.set('item_id', item.id);
-      body.set('bin_id', bin.location_id);
       const response = await fetch('?/assignItem', {
         method: 'POST',
         body,
         headers: { 'x-sveltekit-action': 'true' }
       });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || result?.type === 'failure') {
+      const result = deserialize(await response.text());
+      if (result.type === 'failure') {
         message = {
           kind: 'error',
-          text: result?.data?.error ?? `“${item.name}” could not be moved.`
+          text:
+            (result.data as { error?: string } | undefined)?.error ??
+            `“${item.name}” could not be moved.`
         };
       } else {
-        message = { kind: 'ok', text: `Moved “${item.name}” into “${bin.name}”` };
+        const moved = Number.isFinite(quantity) && quantity > 0 ? quantity : item.loose_quantity;
+        message = {
+          kind: 'ok',
+          text: `Moved ${formatNumber(moved)} × “${item.name}” into “${bin.name}”`
+        };
       }
       await invalidateAll();
     } catch {
@@ -478,8 +488,8 @@
           <div class="card-body">
             <p class="small muted" style="margin-bottom: 10px;">
               {#if selectedBin}
-                These sit directly in the drawer rather than in a bin. The arrow puts one into
-                <strong>{selectedBin.name}</strong>.
+                These sit directly in the drawer rather than in a bin. The box is how many go into
+                <strong>{selectedBin.name}</strong>; leave it at the full amount to put them all away.
               {:else}
                 These sit directly in the drawer rather than in a bin. Select a bin on the map, then
                 move items into it from here.
@@ -490,21 +500,39 @@
                 <li>
                   <span class="map-loose-name">
                     <a class="link" href={h(`/items/${item.id}`)}>{item.name}</a>
-                    <span class="small muted">{formatNumber(item.quantity)} {item.unit}</span>
+                    <span class="small muted">
+                      {#if item.loose_quantity !== item.quantity}
+                        {formatNumber(item.loose_quantity)} of {formatNumber(item.quantity)} {item.unit}
+                        here
+                      {:else}
+                        {formatNumber(item.quantity)} {item.unit}
+                      {/if}
+                    </span>
                   </span>
                   {#if selectedBin}
                     <form
+                      class="map-loose-form"
                       method="POST"
                       action="?/assignItem"
                       onsubmit={(event) => assignItem(event, item, selectedBin)}
                     >
                       <input type="hidden" name="item_id" value={item.id} />
                       <input type="hidden" name="bin_id" value={selectedBin.location_id} />
+                      <input
+                        class="input map-qty"
+                        type="number"
+                        name="quantity"
+                        min="1"
+                        max={item.loose_quantity}
+                        step="any"
+                        value={item.loose_quantity}
+                        aria-label={`How many of ${item.name} to put into ${selectedBin.name}`}
+                      />
                       <button
                         class="icon-btn"
                         type="submit"
                         disabled={busy}
-                        title={`Move ${item.name} into ${selectedBin.name}`}
+                        title={`Move into ${selectedBin.name}`}
                         aria-label={`Move ${item.name} into ${selectedBin.name}`}
                       >
                         <Icon name="arrowRight" size={15} />
@@ -677,6 +705,20 @@
   .map-toolbar-name {
     font-weight: 650;
     font-size: 13px;
+  }
+
+  .map-loose-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+  }
+
+  .map-qty {
+    width: 68px;
+    padding: 4px 6px;
+    font-size: 12px;
+    text-align: right;
   }
 
   .map-loose-name {

@@ -4,7 +4,7 @@ import { cellKeys, effectiveFootprint, normaliseRotation } from '$lib/grid';
 import { listItems } from './items';
 import { getLocation, getLocations } from './locations';
 import { layoutSchema, parseWith } from './schemas';
-import type { DrawerBin, DrawerLayout, Location } from '$lib/types';
+import type { DrawerBin, DrawerLayout, Location, LooseItem } from '$lib/types';
 
 interface BinCount {
   item_count: number;
@@ -47,6 +47,31 @@ function binCounts(): Map<string, BinCount> {
       { item_count: Number(row.item_count), unit_count: Number(row.unit_count) }
     ])
   );
+}
+
+/** How much of each item is held by one container, as opposed to on hand. */
+function quantitiesAt(locationId: string): Map<string, number> {
+  const rows = db
+    .prepare(
+      `WITH lots AS (
+         SELECT s.item_id AS item_id, s.quantity AS quantity
+         FROM item_stock s
+         JOIN items i ON i.id = s.item_id
+         WHERE i.archived = 0 AND s.location_id = ?
+       ),
+       fallback AS (
+         SELECT i.id AS item_id, i.quantity AS quantity
+         FROM items i
+         WHERE i.archived = 0 AND i.location_id = ?
+           AND NOT EXISTS (SELECT 1 FROM item_stock s WHERE s.item_id = i.id)
+       )
+       SELECT item_id, SUM(quantity) AS quantity
+       FROM (SELECT * FROM lots UNION ALL SELECT * FROM fallback)
+       GROUP BY item_id`
+    )
+    .all(locationId, locationId) as Array<{ item_id: string; quantity: number }>;
+
+  return new Map(rows.map((row) => [row.item_id, Number(row.quantity)]));
 }
 
 function placementOf(location: Location): DrawerBin | null {
@@ -99,7 +124,18 @@ export function getLayout(id: string): DrawerLayout {
 
   const used = bins.reduce((total, bin) => total + bin.w * bin.h, 0);
   const total = (location.grid_cols ?? 0) * (location.grid_rows ?? 0);
-  const loose = listItems({ location_id: id, include_descendants: false, limit: 500 }).items;
+  const looseQuantities = quantitiesAt(id);
+  const loose: LooseItem[] = listItems({
+    location_id: id,
+    include_descendants: false,
+    limit: 500
+  }).items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    unit: item.unit,
+    quantity: item.quantity,
+    loose_quantity: looseQuantities.get(item.id) ?? item.quantity
+  }));
 
   return {
     location,

@@ -921,6 +921,18 @@ export const openapi = {
           updated_at: { type: 'string', format: 'date-time' }
         }
       },
+      LooseItem: {
+        type: 'object',
+        description:
+          'An item sitting in a container rather than in one of its bins. loose_quantity is what this container holds; quantity is the total on hand everywhere.',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          unit: { type: 'string' },
+          quantity: { type: 'number' },
+          loose_quantity: { type: 'number' }
+        }
+      },
       DrawerLayout: {
         type: 'object',
         description: 'The map of one partitioned container: its grid, its placed bins and what is still loose.',
@@ -957,7 +969,7 @@ export const openapi = {
           },
           loose_items: {
             type: 'array',
-            items: item,
+            items: ref('LooseItem'),
             description: 'Items held by the container itself rather than by a bin'
           }
         }

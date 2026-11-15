@@ -3,7 +3,7 @@ import { ApiError } from '$lib/server/errors';
 import { findFreeOrigin, occupiedCells } from '$lib/grid';
 import { getLayout, setLayout } from '$lib/server/layout';
 import { createLocation, getLocation, updateLocation } from '$lib/server/locations';
-import { moveAllStock } from '$lib/server/stock';
+import { transferStock } from '$lib/server/stock';
 
 export function load({ params }: { params: { id: string } }) {
   return { layout: getLayout(params.id) };
@@ -157,22 +157,52 @@ export const actions = {
   },
 
   /**
-   * Put a loose item into a bin on this map. Reuses moveAllStock so the item's
-   * lots are merged and the move is recorded in its history exactly as it would
-   * be from the item page.
+   * Put loose stock into a bin on this map, in part or in full.
+   *
+   * This is a transfer from the container rather than a move of the item: a
+   * printed caddy holds a fixed number of sticks, so "move 8 of the 20 here"
+   * has to leave the rest exactly where it is. Stock in another drawer is never
+   * pulled in by accident.
    */
   assignItem: async ({ request, params }: { request: Request; params: { id: string } }) => {
     const form = await request.formData();
     const itemId = String(form.get('item_id') ?? '');
     const binId = String(form.get('bin_id') ?? '');
+    const rawQuantity = String(form.get('quantity') ?? '').trim();
     if (!itemId || !binId) return fail(400, { error: 'Choose an item and a bin' });
+
+    const quantity = rawQuantity === '' ? null : Number(rawQuantity);
+    if (quantity !== null && (!Number.isFinite(quantity) || quantity <= 0)) {
+      return fail(400, { error: 'Enter how many to put away' });
+    }
+
     try {
       const bin = getLocation(binId);
       if (bin.parent_id !== params.id) {
         return fail(400, { error: 'That bin is not inside this location' });
       }
-      moveAllStock(itemId, binId, { note: `Put away in ${bin.name}` });
-      return { success: `Moved into “${bin.name}”` };
+
+      if (quantity === null) {
+        // No amount given: put away everything loose in this container.
+        const layout = getLayout(params.id);
+        const loose = layout.loose_items.find((entry) => entry.id === itemId);
+        if (!loose) return fail(400, { error: 'That item is not loose in this location' });
+        transferStock(itemId, {
+          from_location_id: params.id,
+          to_location_id: binId,
+          quantity: loose.loose_quantity,
+          note: `Put away in ${bin.name}`
+        });
+        return { success: `Moved ${loose.loose_quantity} ${loose.unit} into “${bin.name}”` };
+      }
+
+      transferStock(itemId, {
+        from_location_id: params.id,
+        to_location_id: binId,
+        quantity,
+        note: `Put away in ${bin.name}`
+      });
+      return { success: `Moved ${quantity} into “${bin.name}”` };
     } catch (error) {
       return actionFailure(error);
     }
