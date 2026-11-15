@@ -136,9 +136,9 @@ size; each bin is one of its child locations, holding a footprint and a position
   custom field ({"slot": 2}) rather than creating a location per compartment.
 - Each entry in bins carries its items (id, name, unit, quantity), so one call tells you both the
   layout and what every bin holds. unit_count and item_count are summed from that list.
-- Bins added from the map screen may be left unnamed: they are called "<w>x<h> gridfinity bin" with a
-  counting code such as GF1x2-1. POST /locations still requires an explicit name, so an agent adding
-  bins through the API should choose one.
+- Bins added from the map screen may be left unnamed: they are called "<w>x<h> bin" with a counting
+  code such as BIN1x2-1. POST /locations still requires an explicit name, so an agent adding bins
+  through the API should choose one.
 - Items sitting directly in the container, not in any bin, come back as loose_items, each with
   loose_quantity (what this container holds) and quantity (the total on hand). Put them away with
   POST /items/{id}/transfer ({"from_location_id":"<container-id>","to_location_id":"<bin-id>",

@@ -4,6 +4,12 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.10.1 — 2026-11-15
+
+- **Generated bin names are neutral.** An unnamed bin is now called *1x2 bin* with the code
+  `BIN1x2-1` rather than naming a particular brand — the same sizing and numbering work for tubs in a
+  wall rack or any other divided storage.
+
 ## 1.10.0 — 2026-11-15
 
 - **Unnamed bins name themselves.** Adding a bin without typing a name now calls it after its

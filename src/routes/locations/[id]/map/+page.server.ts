@@ -80,7 +80,8 @@ export const actions = {
    *
    * Leaving the name blank names the bin after its footprint and gives it a
    * counting code, so a drawer can be filled with printed bins first and
-   * labelled later: "1x2 gridfinity bin" / "GF1x2-1".
+   * labelled later: "1x2 bin" / "BIN1x2-1". Nothing here assumes the bins are
+   * Gridfinity — the same applies to tubs in a wall rack.
    */
   addBin: async ({ request, params }: { request: Request; params: { id: string } }) => {
     const form = await request.formData();
@@ -99,8 +100,8 @@ export const actions = {
         return fail(400, { error: 'A bin needs a whole-cell width and depth' });
       }
 
-      const name = typedName || `${w}x${h} gridfinity bin`;
-      const code = typedCode || (typedName ? '' : nextCodeInSeries(`GF${w}x${h}-`));
+      const name = typedName || `${w}x${h} bin`;
+      const code = typedCode || (typedName ? '' : nextCodeInSeries(`BIN${w}x${h}-`));
 
       const created = createLocation({
         name,

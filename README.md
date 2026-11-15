@@ -28,8 +28,8 @@ Workshop
   still loose in the drawer can be put into the selected bin in a quantity you choose — handy when a
   printed caddy holds only part of a stock lot and the rest belongs in the next one. An item page
   shows the drawer it lives in with the holding bin highlighted, and links straight to that spot.
-  Bins added without a name are named after their footprint and numbered per size (`GF1x2-1`,
-  `GF1x2-2`, …) so a drawer can be filled before it is labelled.
+  Bins added without a name are named after their footprint and numbered per size (`BIN1x2-1`,
+  `BIN1x2-2`, …) so a drawer can be filled before it is labelled.
 - **Items** with quantity, unit, low-stock threshold, SKU, category, tags, supplier, optional price,
   manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
 - **Managed categories** — create, rename and delete categories in one place. Give each category a

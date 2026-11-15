@@ -676,8 +676,8 @@
           <p class="small muted" style="margin-top: 10px;">
             The bin is dropped into the first free space of its size; anything that does not fit
             waits in the unplaced list below. Leave the name blank and it is called
-            <strong>“{binWidth}x{binDepth} gridfinity bin”</strong> with a counting code such as
-            <strong>GF{binWidth}x{binDepth}-1</strong>.
+            <strong>“{binWidth}x{binDepth} bin”</strong> with a counting code such as
+            <strong>BIN{binWidth}x{binDepth}-1</strong>.
           </p>
         </div>
       </div>
