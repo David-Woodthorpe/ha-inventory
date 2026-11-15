@@ -171,6 +171,12 @@ function recalculateItemStock(
     primary = nonEmpty[0].location_id;
   } else if (fallbackLocationId !== undefined) {
     primary = fallbackLocationId;
+  } else if (rows.length === 0) {
+    // Nothing is stored anywhere any more — the last unit was installed in a
+    // host, used up or written off. Keeping the previous location made the item
+    // linger in that bin at a quantity of zero; a returned allocation puts it
+    // back through its recorded source location.
+    primary = null;
   }
 
   db.prepare('UPDATE items SET quantity = ?, location_id = ?, updated_at = ? WHERE id = ?').run(

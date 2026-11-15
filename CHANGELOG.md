@@ -4,6 +4,17 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.11.2 — 2026-11-15
+
+- **A fully signed-out item leaves its bin.** If the last unit of an item goes into another item — a
+  drive fitted in a shelf, a stick of RAM in a server — the item no longer lingers in the storage
+  location showing a quantity of zero. It is not stored anywhere at that point, so its location is
+  cleared, and returning it to stock puts it back exactly where it came from.
+- **The item page says where it went.** A signed-out item now carries a *Signed out to …* badge, so a
+  part with no stock and no location explains itself instead of looking lost.
+- **Existing stale records were corrected.** Items left pointing at a bin they no longer occupied were
+  cleared, which is what removed the two IBM drives from the Sorting Tray.
+
 ## 1.11.1 — 2026-11-15
 
 - **Quantity fields step in whole numbers.** The browser's own spinner on a quantity field behaved

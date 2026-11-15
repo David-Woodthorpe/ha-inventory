@@ -28,6 +28,13 @@
   const customEntries = $derived(Object.entries(item.custom_fields));
   const qtyClass = $derived(quantityClass(item.quantity, item.low_stock));
   const stockedLots = $derived(item.stock.filter((lot) => lot.quantity > 0));
+
+  /** One entry per host, so several allocations to the same item read as one. */
+  const signedOutHosts = $derived(
+    Array.from(
+      new Map(item.assigned_to.map((allocation) => [allocation.host_item_id, allocation.host])).values()
+    )
+  );
   const componentChoices = $derived(data.items.filter((entry) => entry.id !== item.id));
   const locationName = (lot: { location: { path_label: string } | null }) =>
     lot.location?.path_label ?? 'Unassigned';
@@ -79,6 +86,16 @@
       {/if}
       {#if item.archived}
         <span class="badge badge-outline">Archived</span>
+      {/if}
+      {#if signedOutHosts.length}
+        <span class="badge badge-accent">
+          <Icon name="arrowRight" size={11} />
+          {#if signedOutHosts.length === 1}
+            Signed out to {signedOutHosts[0].name}
+          {:else}
+            Signed out to {signedOutHosts.length} items
+          {/if}
+        </span>
       {/if}
       {#if item.ha_enabled}
         <span class="badge badge-accent"><Icon name="home" size={11} /> Home Assistant</span>
