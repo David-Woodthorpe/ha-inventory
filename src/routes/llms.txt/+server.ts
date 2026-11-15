@@ -223,7 +223,7 @@ curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
 - Quantities are numbers and may be fractional (e.g. 2.5 metres of wire).
 - item.quantity is the total across all locations and item.location_id is the primary (largest) lot. GET /items/{id} also returns "stock" (one entry per location) plus "components" (parts installed here) and "assigned_to" (hosts this item is installed in).
 - Transfers keep the total unchanged and are recorded in the movement history with the source and destination locations.
-- An item with no stock lots has no location_id, so it does not appear in any bin or shelf. Signing out the last unit of a component, or reducing an item to zero, clears it; returning an allocation restores it through the allocation's source_location_id. Check assigned_to to see where a signed-out item physically is.
+- An item with no stock lots has no location_id, so it does not appear in any bin or shelf — unless min_quantity is above zero, in which case it keeps its location because that bin is where a restock belongs. Signing out the last unit of a component, or reducing an item to zero, therefore clears untracked items only; returning an allocation restores stock through the allocation's source_location_id. Check assigned_to to see where a signed-out item physically is.
 - A drawer map is layout only: placing, turning or moving a bin never changes any quantity. Bins hold items through the ordinary location field, so item.location_id is the bin.
 - low_stock is true when min_quantity > 0 and quantity <= min_quantity.
 - item.category_icon and item.category_image_url are display fallbacks from the managed category. Use category_image_url first, then category_icon, when the item has no photo.

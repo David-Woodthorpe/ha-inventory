@@ -4,6 +4,15 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.11.3 — 2026-11-15
+
+- **Items with a reorder point keep their place.** If an item has a low-stock level set, running out no
+  longer clears its location: it stays in its bin at zero, marked **Low stock**, because that is where
+  the replacement belongs and the empty slot is the reminder. Items without a low-stock level still
+  clear their location when the last unit leaves, so signed-out parts do not linger.
+- **The item page explains an empty bin.** When an item has no stock but is still kept somewhere, the
+  Storage card says so and links to the location, instead of only saying nothing is recorded.
+
 ## 1.11.2 — 2026-11-15
 
 - **A fully signed-out item leaves its bin.** If the last unit of an item goes into another item — a

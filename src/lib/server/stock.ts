@@ -154,8 +154,10 @@ function recalculateItemStock(
   const rows = stockRows(itemId);
   const total = roundQuantity(rows.reduce((sum, row) => sum + Number(row.quantity), 0));
   const existing = db
-    .prepare('SELECT location_id FROM items WHERE id = ?')
-    .get(itemId) as unknown as { location_id: string | null } | undefined;
+    .prepare('SELECT location_id, min_quantity FROM items WHERE id = ?')
+    .get(itemId) as unknown as
+    | { location_id: string | null; min_quantity: number }
+    | undefined;
   let primary = existing?.location_id ?? null;
 
   const nonEmpty = rows
@@ -172,11 +174,12 @@ function recalculateItemStock(
   } else if (fallbackLocationId !== undefined) {
     primary = fallbackLocationId;
   } else if (rows.length === 0) {
-    // Nothing is stored anywhere any more — the last unit was installed in a
-    // host, used up or written off. Keeping the previous location made the item
-    // linger in that bin at a quantity of zero; a returned allocation puts it
-    // back through its recorded source location.
-    primary = null;
+    // Nothing is stored anywhere any more. An item with a reorder point keeps
+    // its place, because that bin is where the replacement goes and a zero there
+    // is a restock cue; anything else has no business claiming a location, which
+    // is what made signed-out parts linger at zero. A returned allocation puts
+    // stock back through its recorded source location either way.
+    primary = Number(existing?.min_quantity ?? 0) > 0 ? primary : null;
   }
 
   db.prepare('UPDATE items SET quantity = ?, location_id = ?, updated_at = ? WHERE id = ?').run(

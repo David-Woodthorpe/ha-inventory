@@ -711,7 +711,14 @@
             {/each}
           </div>
         {:else}
-          <p class="small muted">No stock recorded in any location yet.</p>
+          <p class="small muted">
+            No stock recorded in any location yet.
+            {#if item.location}
+              This item is still kept at
+              <a class="link" href={h(`/locations/${item.location.id}`)}>{item.location.path_label}</a>
+              because it is tracked with a low-stock level, so that is where a restock belongs.
+            {/if}
+          </p>
         {/if}
 
         {#if data.drawerMaps.length > 0}
