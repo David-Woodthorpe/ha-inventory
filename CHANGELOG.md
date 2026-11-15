@@ -4,6 +4,13 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.14.1 — 2026-11-15
+
+- **Adding and editing items works again from the Home Assistant sidebar.** A browser security check
+  could reject the form when the add-on was shown inside Home Assistant's sandboxed panel, ending in
+  a "webpage might be having issues" error. Form submissions and uploads from the ingress panel are
+  now accepted, while direct cross-site requests are still refused.
+
 ## 1.14.0 — 2026-11-15
 
 - **Fitted parts show on the rack.** A device with components installed — a disk shelf full of drives —

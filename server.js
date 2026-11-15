@@ -87,11 +87,15 @@ function alignForwardedHeadersWithOrigin(req) {
   const fetchSite = firstHeader(req.headers['sec-fetch-site']).toLowerCase();
 
   if (!originHeader || originHeader === 'null') {
-    // Home Assistant renders the ingress panel in a sandboxed iframe, so the
-    // browser reports an opaque origin ("Origin: null") on form posts. It still
-    // marks same-origin requests, so substitute the forwarded origin. This only
-    // applies through ingress; a cross-site form is marked cross-site.
-    if (isFormSubmission(req) && ingressPath && fetchSite === 'same-origin') {
+    // Home Assistant renders the ingress panel in a sandboxed iframe. Depending
+    // on the sandbox flags and browser, a form post from that frame reports an
+    // opaque origin ("Origin: null") and is marked cross-site even though it
+    // targets the ingress URL. The X-Ingress-Path header is set by the
+    // Supervisor proxy, not by the browser, and the ingress URL carries a
+    // secret token plus the user's HA session, so an ingress form post is
+    // trusted. Synthesise the origin from the forwarded headers so SvelteKit's
+    // CSRF check can compare it with the request origin.
+    if (isFormSubmission(req) && ingressPath) {
       const proto = firstHeader(req.headers['x-forwarded-proto']);
       const forwardedHost = firstHeader(req.headers['x-forwarded-host']);
       if (proto && forwardedHost) req.headers.origin = `${proto}://${forwardedHost}`;
@@ -169,9 +173,12 @@ const server = http.createServer((req, res) => {
 
   // SvelteKit's CSRF check applies to every multipart/form-data request,
   // including API uploads. Command-line and server-to-server clients do not
-  // send Origin, so give API requests the app's own origin. Browser requests
-  // that do send a foreign Origin are still rejected.
-  if (!req.headers.origin && req.url?.startsWith('/api/')) {
+  // send Origin, and a sandboxed ingress frame reports an opaque "null"
+  // origin, so give API requests the app's own origin. Browser requests that
+  // do send a foreign Origin are still rejected.
+  const apiOrigin = firstHeader(req.headers.origin);
+  const apiIngressPath = firstHeader(req.headers['x-ingress-path']);
+  if ((!apiOrigin || (apiOrigin === 'null' && apiIngressPath)) && req.url?.startsWith('/api/')) {
     const proto = String(req.headers['x-forwarded-proto']).split(',')[0].trim();
     const forwardedHost = String(req.headers['x-forwarded-host']).split(',')[0].trim();
     req.headers.origin = `${proto}://${forwardedHost}`;
