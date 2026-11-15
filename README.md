@@ -23,8 +23,9 @@ Workshop
 
 - **Arbitrarily nested locations** — rooms, shelves, drawers, bins; move a branch without breaking it.
 - **Drawer maps** — give any container a grid (a 42 mm Gridfinity drawer is 5 × 8) and drag its bins
-  into place, turning them 90° to fit. Bins are ordinary locations, so their items, photos and history
-  travel with them; the map also shows used and free cells and anything still loose in the drawer.
+  into place, toggling each between portrait and landscape to fit. Bins are ordinary locations, so
+  their items, photos and history travel with them. The map shows used and free cells, and any item
+  still loose in the drawer can be put into the selected bin with one click.
 - **Items** with quantity, unit, low-stock threshold, SKU, category, tags, supplier, optional price,
   manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
 - **Managed categories** — create, rename and delete categories in one place. Give each category a

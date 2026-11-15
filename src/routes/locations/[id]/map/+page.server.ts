@@ -3,6 +3,7 @@ import { ApiError } from '$lib/server/errors';
 import { findFreeOrigin, occupiedCells } from '$lib/grid';
 import { getLayout, setLayout } from '$lib/server/layout';
 import { createLocation, getLocation, updateLocation } from '$lib/server/locations';
+import { moveAllStock } from '$lib/server/stock';
 
 export function load({ params }: { params: { id: string } }) {
   return { layout: getLayout(params.id) };
@@ -150,6 +151,28 @@ export const actions = {
         ]
       });
       return { success: `Placed “${child.name}” at cell ${origin.x},${origin.y}` };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  /**
+   * Put a loose item into a bin on this map. Reuses moveAllStock so the item's
+   * lots are merged and the move is recorded in its history exactly as it would
+   * be from the item page.
+   */
+  assignItem: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    const itemId = String(form.get('item_id') ?? '');
+    const binId = String(form.get('bin_id') ?? '');
+    if (!itemId || !binId) return fail(400, { error: 'Choose an item and a bin' });
+    try {
+      const bin = getLocation(binId);
+      if (bin.parent_id !== params.id) {
+        return fail(400, { error: 'That bin is not inside this location' });
+      }
+      moveAllStock(itemId, binId, { note: `Put away in ${bin.name}` });
+      return { success: `Moved into “${bin.name}”` };
     } catch (error) {
       return actionFailure(error);
     }

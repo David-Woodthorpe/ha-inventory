@@ -4,6 +4,17 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.7.1 — 2026-11-15
+
+- **Turning a bin is now a two-way toggle.** It used to step through four positions, two of
+  which only faced the label edge at the back of the drawer. Select a bin and press **Turn**,
+  or press `R`, to switch between portrait and landscape; a square bin says so instead of
+  turning for no reason.
+- **Put loose items away without leaving the map.** Select a bin and every item sitting loose
+  in the drawer gets an arrow beside it that moves that item straight into the bin. The whole
+  bin's worth of parts can be put away in a row, with the selection kept and each move
+  recorded in the item's history.
+
 ## 1.7.0 — 2026-11-15
 
 - **Drawer maps.** Any location can now be given a grid — a Bisley drawer full of

@@ -6,6 +6,7 @@
   import {
     areaIsFree,
     effectiveFootprint,
+    findFreeOrigin,
     fitsInGrid,
     occupiedCells
   } from '$lib/grid';
@@ -41,6 +42,9 @@
   let dragTarget = $state<{ x: number; y: number } | null>(null);
   let message = $state<{ kind: 'ok' | 'error'; text: string } | null>(null);
   let busy = $state(false);
+  /** The bin the toolbar and the loose-item arrows act on. */
+  let selected = $state<string | null>(null);
+  const selectedBin = $derived(bins.find((bin) => bin.location_id === selected) ?? null);
 
   const payloadOf = (bin: DrawerBin) => ({
     location_id: bin.location_id,
@@ -73,7 +77,42 @@
     }
   }
 
+  /**
+   * Move a loose item into the selected bin without a full page reload, so the
+   * selection survives and several items can be put away in a row.
+   */
+  async function assignItem(event: SubmitEvent, item: { id: string; name: string }, bin: DrawerBin) {
+    event.preventDefault();
+    busy = true;
+    message = null;
+    try {
+      const body = new FormData();
+      body.set('item_id', item.id);
+      body.set('bin_id', bin.location_id);
+      const response = await fetch('?/assignItem', {
+        method: 'POST',
+        body,
+        headers: { 'x-sveltekit-action': 'true' }
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || result?.type === 'failure') {
+        message = {
+          kind: 'error',
+          text: result?.data?.error ?? `“${item.name}” could not be moved.`
+        };
+      } else {
+        message = { kind: 'ok', text: `Moved “${item.name}” into “${bin.name}”` };
+      }
+      await invalidateAll();
+    } catch {
+      message = { kind: 'error', text: 'Could not reach the server. Nothing was moved.' };
+    } finally {
+      busy = false;
+    }
+  }
+
   function beginDrag(event: PointerEvent, bin: DrawerBin) {
+    selected = bin.location_id;
     if (event.button !== 0 || !gridEl) return;
     const rect = gridEl.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
@@ -132,23 +171,33 @@
     );
   }
 
-  async function rotate(bin: DrawerBin, step = 90) {
-    const rotation = (bin.rotation + step + 360) % 360;
-    const [w, h2] = effectiveFootprint(bin.base_w, bin.base_h, rotation);
-    const x = Math.min(bin.x, cols - w);
-    const y = Math.min(bin.y, rows - h2);
-    if (x < 0 || y < 0) {
-      message = { kind: 'error', text: `A ${w}x${h2} bin does not fit in this drawer at all.` };
+  /**
+   * Portrait or landscape — a toggle, not a four-step cycle. The bin tries to
+   * stay where it is (clamped inside the grid); if that will not fit it takes
+   * the first free space of the new footprint instead of refusing outright.
+   */
+  async function toggleOrientation(bin: DrawerBin) {
+    if (bin.base_w === bin.base_h) {
+      message = { kind: 'error', text: `“${bin.name}” is square, so turning it changes nothing.` };
       return;
     }
+    const rotation = bin.rotation === 0 ? 90 : 0;
+    const [w, h] = effectiveFootprint(bin.base_w, bin.base_h, rotation);
     const others = bins.filter((entry) => entry.location_id !== bin.location_id);
-    if (!areaIsFree(occupiedCells(others), x, y, w, h2)) {
-      message = { kind: 'error', text: `There is no room beside “${bin.name}” to turn it.` };
+    const taken = occupiedCells(others);
+
+    const x = Math.min(Math.max(bin.x, 0), cols - w);
+    const y = Math.min(Math.max(bin.y, 0), rows - h);
+    let target = x >= 0 && y >= 0 && areaIsFree(taken, x, y, w, h) ? { x, y } : null;
+    if (!target) target = findFreeOrigin(taken, w, h, cols, rows);
+    if (!target) {
+      message = { kind: 'error', text: `No free ${w}x${h} space for “${bin.name}” in this drawer.` };
       return;
     }
+
     await persist(
-      others.concat([{ ...bin, x, y, rotation, w, h: h2 }]),
-      `“${bin.name}” turned to ${rotation}°`
+      others.concat([{ ...bin, x: target.x, y: target.y, rotation, w, h }]),
+      `“${bin.name}” is now ${rotation === 90 ? 'landscape' : 'portrait'}`
     );
   }
 
@@ -162,7 +211,7 @@
     };
     if (event.key === 'r' || event.key === 'R') {
       event.preventDefault();
-      void rotate(bin);
+      void toggleOrientation(bin);
       return;
     }
     const move = moves[event.key];
@@ -280,6 +329,29 @@
         <h2>Grid</h2>
         <span class="badge">{layout.used_cells} of {cols * rows} cells used</span>
       </div>
+
+      {#if selectedBin}
+        <div class="map-toolbar">
+          <span class="map-toolbar-name">{selectedBin.name}</span>
+          <span class="badge badge-outline mono">{selectedBin.base_w}×{selectedBin.base_h}</span>
+          <span class="badge">{selectedBin.rotation === 90 ? 'landscape' : 'portrait'}</span>
+          <button
+            class="btn btn-sm"
+            type="button"
+            onclick={() => toggleOrientation(selectedBin)}
+            disabled={busy || selectedBin.base_w === selectedBin.base_h}
+            title={selectedBin.base_w === selectedBin.base_h
+              ? 'A square bin keeps the same footprint when turned'
+              : 'Turn between portrait and landscape'}
+          >
+            <Icon name="rotate" size={14} /> Turn
+          </button>
+          <button class="btn btn-sm btn-ghost" type="button" onclick={() => (selected = null)}>
+            <Icon name="x" size={14} />
+          </button>
+        </div>
+      {/if}
+
       <div class="card-body">
         <p class="map-edge">Back</p>
         <div
@@ -288,6 +360,10 @@
           style={`--cols: ${cols}; --rows: ${rows};`}
           role="group"
           aria-label={`${cols} by ${rows} drawer map`}
+          onpointerdown={(event) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest('.map-bin')) selected = null;
+          }}
         >
           {#each cells as index (index)}
             <div class="map-cell" aria-hidden="true"></div>
@@ -300,11 +376,14 @@
               class:dragging={dragging?.id === bin.location_id}
               class:invalid={dragging?.id === bin.location_id && dragTarget !== null &&
                 !fitsInGrid(dragTarget.x, dragTarget.y, bin.base_w, bin.base_h, bin.rotation, cols, rows)}
+              class:selected={selected === bin.location_id}
               style={binStyle(bin)}
               onpointerdown={(event) => beginDrag(event, bin)}
               onpointermove={moveDrag}
               onpointerup={(event) => endDrag(event, bin)}
               onpointercancel={() => { dragging = null; dragTarget = null; }}
+              onfocus={() => (selected = bin.location_id)}
+              onclick={() => (selected = bin.location_id)}
               onkeydown={(event) => onBinKeydown(event, bin)}
               title={`${bin.name} — ${bin.w}×${bin.h} at cell ${bin.x},${bin.y}`}
             >
@@ -315,16 +394,16 @@
                   <span>{plural(bin.item_count, 'item')}</span>
                 {/if}
               </span>
-              {#if bin.rotation === 180}
-                <span class="map-bin-warn" title="The label edge now faces the back of the drawer">labels back</span>
-              {/if}
             </button>
           {/each}
         </div>
         <p class="map-edge">Front</p>
       </div>
       <div class="card-foot map-legend">
-        <span class="small muted">Drag a bin, or focus it and use the arrow keys. <kbd>R</kbd> turns it 90°.</span>
+        <span class="small muted">
+          Drag a bin, or focus it and use the arrow keys. <kbd>R</kbd> turns it between portrait and
+          landscape; select a bin to move loose items into it.
+        </span>
       </div>
     </div>
 
@@ -398,14 +477,42 @@
           </div>
           <div class="card-body">
             <p class="small muted" style="margin-bottom: 10px;">
-              These sit directly in the drawer rather than in a bin. Move them into a bin for a
-              precise pick.
+              {#if selectedBin}
+                These sit directly in the drawer rather than in a bin. The arrow puts one into
+                <strong>{selectedBin.name}</strong>.
+              {:else}
+                These sit directly in the drawer rather than in a bin. Select a bin on the map, then
+                move items into it from here.
+              {/if}
             </p>
             <ul class="map-list">
               {#each layout.loose_items as item (item.id)}
                 <li>
-                  <a class="link" href={h(`/items/${item.id}`)}>{item.name}</a>
-                  <span class="small muted">{formatNumber(item.quantity)} {item.unit}</span>
+                  <span class="map-loose-name">
+                    <a class="link" href={h(`/items/${item.id}`)}>{item.name}</a>
+                    <span class="small muted">{formatNumber(item.quantity)} {item.unit}</span>
+                  </span>
+                  {#if selectedBin}
+                    <form
+                      method="POST"
+                      action="?/assignItem"
+                      onsubmit={(event) => assignItem(event, item, selectedBin)}
+                    >
+                      <input type="hidden" name="item_id" value={item.id} />
+                      <input type="hidden" name="bin_id" value={selectedBin.location_id} />
+                      <button
+                        class="icon-btn"
+                        type="submit"
+                        disabled={busy}
+                        title={`Move ${item.name} into ${selectedBin.name}`}
+                        aria-label={`Move ${item.name} into ${selectedBin.name}`}
+                      >
+                        <Icon name="arrowRight" size={15} />
+                      </button>
+                    </form>
+                  {:else}
+                    <span class="small faint">no bin selected</span>
+                  {/if}
                 </li>
               {/each}
             </ul>
@@ -529,6 +636,11 @@
     z-index: 3;
   }
 
+  .map-bin.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 3px var(--accent);
+  }
+
   .map-bin.invalid {
     background: var(--danger-soft);
     border-color: var(--danger);
@@ -552,14 +664,26 @@
     color: var(--muted);
   }
 
-  .map-bin-warn {
-    position: absolute;
-    top: 3px;
-    right: 4px;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--warning);
+  .map-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .map-toolbar-name {
+    font-weight: 650;
+    font-size: 13px;
+  }
+
+  .map-loose-name {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    min-width: 0;
   }
 
   .map-list {

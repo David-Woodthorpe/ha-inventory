@@ -229,7 +229,7 @@ export const locationUpdateSchema = z
 
 const gridRotation = z.preprocess(
   (value) => (value === undefined || value === '' ? undefined : Number(value)),
-  z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional()
+  z.union([z.literal(0), z.literal(90)]).optional()
 );
 
 const gridPlacement = z.object({

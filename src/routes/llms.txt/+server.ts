@@ -125,15 +125,17 @@ size; each bin is one of its child locations, holding a footprint and a position
 - Coordinates are zero-based cells counted from the front-left corner of the container:
   x grows to the right, y grows away from the front. A 5x8 drawer therefore spans x 0-4 and
   y 0-7.
-- w and h are the bin's own footprint in cells, before rotation. rotation is 0, 90, 180 or
-  270 degrees and swaps the effective footprint at 90 and 270, so a 1x2 bin turned 90 degrees
-  occupies 2 cells across and 1 deep.
+- w and h are the bin's own footprint in cells. rotation is 0 (portrait) or 90 (landscape);
+  landscape swaps the effective footprint, so a 1x2 bin occupies 2 cells across and 1 deep.
+  The UI toggles a selected bin between the two.
 - Overlaps, footprints outside the grid and locations that are not children of the container
   are rejected (409 or 400). Shrinking a grid that would leave a bin hanging over the edge is
   rejected too.
 - One bin may hold several different items. Record the position inside the bin with an item
   custom field ({"slot": 2}) rather than creating a location per compartment.
-- Items sitting directly in the container, not in any bin, come back as loose_items.
+- Items sitting directly in the container, not in any bin, come back as loose_items. Put one
+  away with POST /items/move ({"item_ids":["..."],"to_location_id":"<bin-id>"}); the map screen
+  does the same thing with one click per item once a bin is selected.
 - Bins are ordinary locations, so they keep their items, photos and history wherever they
   are placed; moving one to another drawer is PATCH /locations/{id} with parent_id.
 

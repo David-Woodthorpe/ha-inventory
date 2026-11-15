@@ -10,14 +10,21 @@
  * one definition of "does this fit".
  */
 
-export const ROTATIONS = [0, 90, 180, 270] as const;
+export const ROTATIONS = [0, 90] as const;
 
 export type Rotation = (typeof ROTATIONS)[number];
 
+/**
+ * Portrait (0) or landscape (90).
+ *
+ * This is a toggle rather than a four-step cycle on purpose: a bin either sits
+ * as designed or lies on its side, and 180/270 would only turn its label edge to
+ * the back of the drawer. Older values are folded into the nearest of the two.
+ */
 export function normaliseRotation(value: number | null | undefined): Rotation {
   const numeric = Number(value ?? 0);
   const wrapped = ((numeric % 360) + 360) % 360;
-  return wrapped === 90 || wrapped === 180 || wrapped === 270 ? wrapped : 0;
+  return wrapped === 90 || wrapped === 270 ? 90 : 0;
 }
 
 /** The number of cells a footprint covers once rotation is applied. */
@@ -26,8 +33,7 @@ export function effectiveFootprint(
   h: number,
   rotation: number | null | undefined
 ): [number, number] {
-  const rot = normaliseRotation(rotation);
-  return rot === 90 || rot === 270 ? [h, w] : [w, h];
+  return normaliseRotation(rotation) === 90 ? [h, w] : [w, h];
 }
 
 /** Every cell key (x,y) a placed bin occupies. */

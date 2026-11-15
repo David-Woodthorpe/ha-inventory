@@ -558,8 +558,8 @@ export const openapi = {
                     h: { type: 'integer', minimum: 1 },
                     rotation: {
                       type: 'integer',
-                      enum: [0, 90, 180, 270],
-                      description: 'Rotation in degrees. 90 and 270 swap the effective width and depth.'
+                      enum: [0, 90],
+                      description: 'Orientation: 0 is portrait, 90 is landscape. 90 swaps the effective width and depth.'
                     }
                   }
                 }
@@ -914,8 +914,8 @@ export const openapi = {
           grid_h: { type: 'integer', nullable: true },
           grid_rot: {
             type: 'integer',
-            enum: [0, 90, 180, 270],
-            description: 'Rotation of the bin in its parent grid, in degrees'
+            enum: [0, 90],
+            description: 'Orientation of the bin: 0 portrait, 90 landscape'
           },
           created_at: { type: 'string', format: 'date-time' },
           updated_at: { type: 'string', format: 'date-time' }
@@ -944,7 +944,7 @@ export const openapi = {
                 h: { type: 'integer', description: 'Effective depth in cells, after rotation' },
                 base_w: { type: 'integer', description: 'Footprint width before rotation' },
                 base_h: { type: 'integer' },
-                rotation: { type: 'integer', enum: [0, 90, 180, 270] },
+                rotation: { type: 'integer', enum: [0, 90] },
                 item_count: { type: 'integer' },
                 unit_count: { type: 'number' }
               }
