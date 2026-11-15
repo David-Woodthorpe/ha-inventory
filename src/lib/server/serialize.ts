@@ -1,4 +1,12 @@
-import type { Attachment, Category, Item, Location, ServiceRecord, StockMovement } from '$lib/types';
+import type {
+  Attachment,
+  Category,
+  Item,
+  Location,
+  ServiceRecord,
+  SignedOutHost,
+  StockMovement
+} from '$lib/types';
 import { pricingEnabled } from './config';
 
 export type LocationRef = Pick<Location, 'id' | 'name' | 'path' | 'path_ids' | 'path_label'>;
@@ -38,6 +46,7 @@ export interface HydrateContext {
   locations: Map<string, Location>;
   attachmentsByItem: Map<string, Attachment[]>;
   categories: Map<string, Category>;
+  signedOutByItem?: Map<string, SignedOutHost[]>;
 }
 
 export function toLocationRef(location: Location | undefined): LocationRef | null {
@@ -91,6 +100,7 @@ export function toItem(row: ItemRow, ctx: HydrateContext): ItemSummary {
     category: row.category,
     category_icon: category?.icon ?? null,
     category_image_url: category?.image_url ?? null,
+    signed_out_to: ctx.signedOutByItem?.get(row.id) ?? [],
     quantity: row.quantity,
     unit: row.unit,
     min_quantity: row.min_quantity,

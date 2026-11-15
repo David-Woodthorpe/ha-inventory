@@ -4,6 +4,16 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.12.0 — 2026-11-15
+
+- **Signed-out parts are findable from the items list.** An item installed in another item now shows a
+  badge naming its host — *→ Disk Shelf #1 - HP D2600* — and its Location column reads
+  *Signed out · Office / Server Cabinet* instead of leaving a blank. That is the host's own location, so
+  a drive fitted in the rack can be found by looking where the rack is, without pretending the drive is
+  stock on that shelf.
+- **The API says the same.** Items carry `signed_out_to`, listing each host with the quantity and the
+  host's location, so a script can answer "where is this part" without walking allocations.
+
 ## 1.11.3 — 2026-11-15
 
 - **Items with a reorder point keep their place.** If an item has a low-stock level set, running out no

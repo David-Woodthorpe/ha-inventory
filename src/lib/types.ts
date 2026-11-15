@@ -202,6 +202,15 @@ export interface ItemRef {
   unit: string;
 }
 
+/** The host an item is signed out to, summarised for list rows. */
+export interface SignedOutHost {
+  host_item_id: string;
+  host_name: string;
+  quantity: number;
+  /** Where the host is stored, so a fitted part can still be found. */
+  host_location: string | null;
+}
+
 /** A quantity of one item held at one location. */
 export interface ItemStockLot {
   id: string;
@@ -241,6 +250,8 @@ export interface Item {
   category_icon: string | null;
   /** Fallback image from the item's category, used when the item has no photo. */
   category_image_url: string | null;
+  /** Hosts this item is installed in, empty when it is loose stock. */
+  signed_out_to: SignedOutHost[];
   quantity: number;
   unit: string;
   min_quantity: number;

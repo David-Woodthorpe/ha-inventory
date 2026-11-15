@@ -113,6 +113,7 @@ ${pricingFields}  "datasheet_url": "https://...",
   "custom_fields": {"tolerance": "5%", "power": "0.25W"},
   "archived": false,
   "ha_enabled": false,
+  "signed_out_to": [],                    // hosts this item is installed in
   "service_interval_months": 12,          // optional; every 12 months
   "service_next_due": "2026-05-12",       // optional; YYYY-MM-DD
   "service_notes": "Replace the battery"  // optional
@@ -223,6 +224,7 @@ curl -X POST ${base}/restore -F 'file=@inventory-backup.db'
 - Quantities are numbers and may be fractional (e.g. 2.5 metres of wire).
 - item.quantity is the total across all locations and item.location_id is the primary (largest) lot. GET /items/{id} also returns "stock" (one entry per location) plus "components" (parts installed here) and "assigned_to" (hosts this item is installed in).
 - Transfers keep the total unchanged and are recorded in the movement history with the source and destination locations.
+- signed_out_to lists the hosts an item is installed in, with the host's own location, so a fitted part can be found from the item list even though it holds no stock. Stock is removed on sign-out; return the allocation to put it back.
 - An item with no stock lots has no location_id, so it does not appear in any bin or shelf — unless min_quantity is above zero, in which case it keeps its location because that bin is where a restock belongs. Signing out the last unit of a component, or reducing an item to zero, therefore clears untracked items only; returning an allocation restores stock through the allocation's source_location_id. Check assigned_to to see where a signed-out item physically is.
 - A drawer map is layout only: placing, turning or moving a bin never changes any quantity. Bins hold items through the ordinary location field, so item.location_id is the bin.
 - low_stock is true when min_quantity > 0 and quantity <= min_quantity.

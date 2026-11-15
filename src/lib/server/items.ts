@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import type {
+  SignedOutHost,
   Attachment,
   Item,
   ItemDetail,
@@ -96,7 +97,60 @@ function hydrateContext(itemIds: string[]): HydrateContext {
       attachmentsByItem.set(attachment.item_id, list);
     }
   }
-  return { locations, attachmentsByItem, categories: categoryLookup() };
+  return {
+    locations,
+    attachmentsByItem,
+    categories: categoryLookup(),
+    signedOutByItem: signedOutSummary(itemIds)
+  };
+}
+
+/**
+ * Which hosts each item is installed in, with the host's own location.
+ *
+ * List rows need this to show "signed out to…": an installed part has no stock
+ * and no stored location of its own, so without it the row looks homeless.
+ */
+function signedOutSummary(itemIds: string[]): Map<string, SignedOutHost[]> {
+  const byItem = new Map<string, SignedOutHost[]>();
+  if (!itemIds.length) return byItem;
+  const placeholders = itemIds.map(() => '?').join(', ');
+  const rows = db
+    .prepare(
+      `SELECT a.component_item_id AS component_item_id, a.host_item_id AS host_item_id,
+              a.quantity AS quantity, h.name AS host_name, h.location_id AS host_location_id
+       FROM item_allocations a
+       JOIN items h ON h.id = a.host_item_id
+       WHERE a.component_item_id IN (${placeholders})
+       ORDER BY h.name COLLATE NOCASE ASC`
+    )
+    .all(...itemIds) as Array<{
+    component_item_id: string;
+    host_item_id: string;
+    quantity: number;
+    host_name: string;
+    host_location_id: string | null;
+  }>;
+
+  const locations = new Map(getLocations().map((entry) => [entry.id, entry]));
+  for (const row of rows) {
+    const list = byItem.get(row.component_item_id) ?? [];
+    const existing = list.find((entry) => entry.host_item_id === row.host_item_id);
+    if (existing) {
+      existing.quantity += Number(row.quantity);
+    } else {
+      list.push({
+        host_item_id: row.host_item_id,
+        host_name: row.host_name,
+        quantity: Number(row.quantity),
+        host_location: row.host_location_id
+          ? (locations.get(row.host_location_id)?.path_label ?? null)
+          : null
+      });
+    }
+    byItem.set(row.component_item_id, list);
+  }
+  return byItem;
 }
 
 function getItemRow(id: string): ItemRow {

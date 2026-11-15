@@ -1321,6 +1321,20 @@ export const openapi = {
           archived: { type: 'boolean' },
           ha_enabled: { type: 'boolean' },
           low_stock: { type: 'boolean' },
+          signed_out_to: {
+            type: 'array',
+            description:
+              'Hosts this item is installed in. Empty for loose stock. host_location is where the host sits, so a fitted part can still be found.',
+            items: {
+              type: 'object',
+              properties: {
+                host_item_id: { type: 'string', format: 'uuid' },
+                host_name: { type: 'string' },
+                quantity: { type: 'number' },
+                host_location: { type: 'string', nullable: true }
+              }
+            }
+          },
           service_interval_months: { type: 'integer', nullable: true },
           service_next_due: { type: 'string', format: 'date', nullable: true },
           service_notes: { type: 'string', nullable: true },

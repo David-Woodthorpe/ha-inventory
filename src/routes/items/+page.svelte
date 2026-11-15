@@ -222,6 +222,14 @@
                       {#if item.sku}<span class="mono">{item.sku}</span>{/if}
                       {#if item.archived}<span class="badge badge-outline">Archived</span>{/if}
                       {#if item.low_stock}<span class="badge badge-low">Low</span>{/if}
+                      {#if item.signed_out_to.length > 0}
+                        <span class="badge badge-accent">
+                          <Icon name="arrowRight" size={10} />
+                          {item.signed_out_to.length === 1
+                            ? item.signed_out_to[0].host_name
+                            : `${item.signed_out_to.length} hosts`}
+                        </span>
+                      {/if}
                       {#if item.attachment_count > 0}
                         <span class="row" style="gap: 3px;">
                           <Icon name="file" size={11} />
@@ -229,7 +237,10 @@
                         </span>
                       {/if}
                       <span class="only-mobile">
-                        {item.location?.path_label ?? 'Unassigned'}
+                        {item.location?.path_label ??
+                          (item.signed_out_to.length
+                            ? `Signed out · ${item.signed_out_to[0].host_location ?? item.signed_out_to[0].host_name}`
+                            : 'Unassigned')}
                       </span>
                     </span>
                   </span>
@@ -239,6 +250,13 @@
               <td class="hide-sm">
                 {#if item.location}
                   <a class="link" href={h(`/locations/${item.location.id}`)}>{item.location.path_label}</a>
+                {:else if item.signed_out_to.length > 0}
+                  <span class="small muted">
+                    Signed out
+                    {#if item.signed_out_to[0].host_location}
+                      · {item.signed_out_to[0].host_location}
+                    {/if}
+                  </span>
                 {:else}
                   <span class="faint">Unassigned</span>
                 {/if}
