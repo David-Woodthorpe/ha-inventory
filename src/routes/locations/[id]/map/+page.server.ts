@@ -1,12 +1,40 @@
 import { fail } from '@sveltejs/kit';
 import { ApiError } from '$lib/server/errors';
 import { findFreeOrigin, occupiedCells } from '$lib/grid';
-import { getLayout, setLayout } from '$lib/server/layout';
-import { createLocation, getLocation, updateLocation } from '$lib/server/locations';
+import { getLayout, getStagingArea, setLayout } from '$lib/server/layout';
+import { createLocation, getLocation, getLocations, updateLocation } from '$lib/server/locations';
 import { transferStock } from '$lib/server/stock';
 
 export function load({ params }: { params: { id: string } }) {
-  return { layout: getLayout(params.id) };
+  const layout = getLayout(params.id);
+  // Drawers that could receive this one's bins when rearranging.
+  const staging = getStagingArea();
+
+  // Other grid locations can take this drawer's bins. The unsorted area is a
+  // legitimate destination too — emptying a drawer onto it keeps a half-finished
+  // reshuffle honest — but it may itself have a grid, so key by id and label it
+  // once rather than listing it twice.
+  const targets = new Map<string, string>();
+  for (const entry of getLocations()) {
+    if (
+      entry.id === params.id ||
+      entry.grid_cols === null ||
+      entry.grid_rows === null ||
+      entry.parent_id === params.id
+    ) {
+      continue;
+    }
+    targets.set(entry.id, entry.path_label);
+  }
+  if (staging && staging.location.id !== params.id) {
+    targets.set(staging.location.id, `${staging.location.path_label} — unsorted`);
+  }
+
+  return {
+    layout,
+    staging,
+    rearrangeTargets: Array.from(targets, ([id, label]) => ({ id, label }))
+  };
 }
 
 function actionFailure(error: unknown) {
@@ -203,6 +231,100 @@ export const actions = {
         note: `Put away in ${bin.name}`
       });
       return { success: `Moved ${quantity} into “${bin.name}”` };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  /**
+   * File an unsorted item into this drawer, either into a chosen bin or into the
+   * drawer itself. Partial amounts work the same way as the loose list, so a
+   * tray with room for eight takes eight and the rest stays unsorted.
+   */
+  fileItem: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    const itemId = String(form.get('item_id') ?? '');
+    const binId = String(form.get('bin_id') ?? '').trim();
+    const rawQuantity = String(form.get('quantity') ?? '').trim();
+    const staging = getStagingArea();
+    if (!staging) return fail(400, { error: 'No unsorted area is set' });
+    if (!itemId) return fail(400, { error: 'Choose an item to file' });
+
+    const item = staging.items.find((entry) => entry.id === itemId);
+    if (!item) return fail(400, { error: 'That item is not in the unsorted area' });
+
+    let quantity = item.loose_quantity;
+    if (rawQuantity !== '') {
+      const parsed = Number(rawQuantity);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return fail(400, { error: 'Enter how many to file' });
+      }
+      quantity = parsed;
+    }
+
+    try {
+      let target = params.id;
+      if (binId) {
+        const bin = getLocation(binId);
+        if (bin.parent_id !== params.id) {
+          return fail(400, { error: 'That bin is not inside this location' });
+        }
+        target = binId;
+      }
+      transferStock(itemId, {
+        from_location_id: staging.location.id,
+        to_location_id: target,
+        quantity,
+        note: `Filed from ${staging.location.name}`
+      });
+      return { success: `Filed ${quantity} ${item.unit} of “${item.name}”` };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  /** File everything unsorted into this drawer at once. */
+  fileAll: async ({ params }: { params: { id: string } }) => {
+    const staging = getStagingArea();
+    if (!staging) return fail(400, { error: 'No unsorted area is set' });
+    if (staging.items.length === 0) return fail(400, { error: 'The unsorted area is empty' });
+    try {
+      let moved = 0;
+      for (const item of staging.items) {
+        transferStock(item.id, {
+          from_location_id: staging.location.id,
+          to_location_id: params.id,
+          quantity: item.loose_quantity,
+          note: `Filed from ${staging.location.name}`
+        });
+        moved += 1;
+      }
+      return { success: `Filed ${moved} item(s) into this location` };
+    } catch (error) {
+      return actionFailure(error);
+    }
+  },
+
+  /**
+   * Move every bin in this drawer to another location in one step, which is how
+   * a drawer gets emptied for a reshuffle. Bins keep their footprint and
+   * rotation but lose their position, because cells belong to the old grid.
+   */
+  moveAllBins: async ({ request, params }: { request: Request; params: { id: string } }) => {
+    const form = await request.formData();
+    const targetId = String(form.get('target_location_id') ?? '');
+    if (!targetId) return fail(400, { error: 'Choose where the bins should go' });
+    if (targetId === params.id) return fail(400, { error: 'Those bins are already here' });
+    try {
+      const target = getLocation(targetId);
+      const children = getLocations().filter((entry) => entry.parent_id === params.id);
+      if (children.length === 0) return fail(400, { error: 'This location has no bins to move' });
+      for (const child of children) {
+        updateLocation(child.id, { parent_id: targetId });
+      }
+      return {
+        success: `Moved ${children.length} bin(s) to “${target.name}”. They keep their footprint and wait in the unplaced list.`
+      };
     } catch (error) {
       return actionFailure(error);
     }

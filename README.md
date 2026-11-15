@@ -31,6 +31,9 @@ Workshop
   manufacturer, part number, datasheet URL, notes and arbitrary custom fields.
 - **Managed categories** — create, rename and delete categories in one place. Give each category a
   built-in icon or an uploaded image; items without a photo show their category artwork.
+- **Unsorted area** — mark one location as the staging point for parts that are not filed yet. A
+  drawer map can show what is waiting and file it into a chosen bin, or into the drawer itself, in
+  whatever quantity the bin holds.
 - **Stock movements** — every change is recorded with a reason and note; quick +/- buttons and manual
   adjustments. Quantities may be fractional (metres of wire, grams of paste).
 - **Multi-location stock** — keep one SKU in several bins at once. Transfer part of the quantity

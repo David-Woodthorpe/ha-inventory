@@ -79,6 +79,9 @@
       {#if location.ha_enabled}
         <span class="badge badge-accent"><Icon name="home" size={11} /> Home Assistant</span>
       {/if}
+      {#if location.is_staging}
+        <span class="badge badge-accent"><Icon name="box" size={11} /> Unsorted area</span>
+      {/if}
     </div>
     <h1 class="detail-title">{location.name}</h1>
     {#if location.description}
@@ -101,6 +104,12 @@
       <Icon name="plus" size={15} />
       Add sublocation
     </a>
+    <form method="POST" action="?/toggleStaging">
+      <button class="btn" type="submit">
+        <Icon name="box" size={15} />
+        {location.is_staging ? 'Stop being unsorted area' : 'Mark as unsorted'}
+      </button>
+    </form>
     <form method="POST" action="?/toggleHomeAssistant">
       <button class="btn" type="submit">
         <Icon name="home" size={15} />

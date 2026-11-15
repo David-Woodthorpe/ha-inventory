@@ -4,7 +4,14 @@ import { cellKeys, effectiveFootprint, normaliseRotation } from '$lib/grid';
 import { listItems } from './items';
 import { getLocation, getLocations } from './locations';
 import { layoutSchema, parseWith } from './schemas';
-import type { BinItem, DrawerBin, DrawerLayout, Location, LooseItem } from '$lib/types';
+import type {
+  BinItem,
+  DrawerBin,
+  DrawerLayout,
+  Location,
+  LooseItem,
+  StagingArea
+} from '$lib/types';
 
 /**
  * What each of these locations holds, item by item.
@@ -83,6 +90,26 @@ function quantitiesAt(locationId: string): Map<string, number> {
     .all(locationId, locationId) as Array<{ item_id: string; quantity: number }>;
 
   return new Map(rows.map((row) => [row.item_id, Number(row.quantity)]));
+}
+
+/** The location marked as unsorted, with what is waiting in it. */
+export function getStagingArea(): StagingArea | null {
+  const location = getLocations().find((entry) => entry.is_staging);
+  if (!location) return null;
+  const quantities = quantitiesAt(location.id);
+  const items: LooseItem[] = listItems({
+    location_id: location.id,
+    include_descendants: false,
+    limit: 500
+  }).items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    unit: item.unit,
+    quantity: item.quantity,
+    loose_quantity: quantities.get(item.id) ?? item.quantity
+  }));
+  items.sort((a, b) => a.name.localeCompare(b.name));
+  return { location, items };
 }
 
 function placementOf(location: Location): DrawerBin | null {

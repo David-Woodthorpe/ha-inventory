@@ -249,6 +249,15 @@ const migrations: string[] = [
   ALTER TABLE locations ADD COLUMN grid_w INTEGER;
   ALTER TABLE locations ADD COLUMN grid_h INTEGER;
   ALTER TABLE locations ADD COLUMN grid_rot INTEGER NOT NULL DEFAULT 0;
+  `,
+  // v8 — one location can be marked as the unsorted staging area
+  //
+  // Sorting means having somewhere for parts that are not filed yet. Rather than
+  // inventing a second kind of record, one location carries the flag; the map
+  // screen reads it and lists what is waiting to be put away. Only one location
+  // can hold it at a time, which is enforced when the flag is set.
+  `
+  ALTER TABLE locations ADD COLUMN is_staging INTEGER NOT NULL DEFAULT 0;
   `
 ];
 

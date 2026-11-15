@@ -32,6 +32,8 @@ export interface Location {
   grid_h: number | null;
   /** Rotation of the bin inside its cell footprint, in degrees. */
   grid_rot: number;
+  /** True for the one location that holds parts not filed yet. */
+  is_staging: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -82,6 +84,12 @@ export interface LooseItem {
   quantity: number;
   /** How many of those are held by this container itself. */
   loose_quantity: number;
+}
+
+/** The staging area: where parts wait until they are filed. */
+export interface StagingArea {
+  location: Location;
+  items: LooseItem[];
 }
 
 /** The map of one partitioned container: its grid plus what is placed on it. */

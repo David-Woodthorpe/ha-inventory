@@ -1,6 +1,7 @@
 <script lang="ts">
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { page } from '$app/state';
   import Icon from '$lib/components/Icon.svelte';
   import { formatNumber, plural } from '$lib/format';
@@ -46,6 +47,85 @@
   /** The bin the toolbar and the loose-item arrows act on. */
   let selected = $state<string | null>(null);
   const selectedBin = $derived(bins.find((bin) => bin.location_id === selected) ?? null);
+
+  /** The unsorted panel is a working mode, so it remembers being open. */
+  let showUnsorted = $state(false);
+  const STORAGE_KEY = 'inventory:map:unsorted';
+
+  onMount(() => {
+    try {
+      showUnsorted = window.localStorage.getItem(STORAGE_KEY) === '1';
+    } catch {
+      showUnsorted = false;
+    }
+  });
+
+  function toggleUnsorted() {
+    showUnsorted = !showUnsorted;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, showUnsorted ? '1' : '0');
+    } catch {
+      /* private mode, session-only */
+    }
+  }
+
+  /** File an unsorted item into the selected bin, or into the drawer itself. */
+  async function fileItem(event: SubmitEvent, item: LooseItem) {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const body = new FormData(form);
+    const quantity = Number(body.get('quantity') ?? 0);
+    const target = selectedBin ? `“${selectedBin.name}”` : 'this drawer';
+    busy = true;
+    message = null;
+    try {
+      const response = await fetch('?/fileItem', {
+        method: 'POST',
+        body,
+        headers: { 'x-sveltekit-action': 'true' }
+      });
+      const result = deserialize(await response.text());
+      if (result.type === 'failure') {
+        message = {
+          kind: 'error',
+          text: (result.data as { error?: string } | undefined)?.error ?? 'That item could not be filed.'
+        };
+      } else {
+        message = {
+          kind: 'ok',
+          text: `Filed ${formatNumber(Number.isFinite(quantity) ? quantity : item.loose_quantity)} × “${item.name}” into ${target}`
+        };
+      }
+      await invalidateAll();
+    } catch {
+      message = { kind: 'error', text: 'Could not reach the server. Nothing moved.' };
+    } finally {
+      busy = false;
+    }
+  }
+
+  function confirmFileAll(event: SubmitEvent) {
+    if (
+      !confirm(
+        `File all ${data.staging?.items.length ?? 0} unsorted item(s) into this drawer as loose items?`
+      )
+    ) {
+      event.preventDefault();
+    }
+  }
+
+  function confirmMoveAllBins(event: SubmitEvent) {
+    const form = event.currentTarget as HTMLFormElement;
+    const select = form.querySelector('select');
+    const label = select?.selectedOptions[0]?.textContent?.trim() ?? 'another location';
+    if (
+      !confirm(
+        `Move every bin in this location to “${label}”? Their contents travel with them and they will need placing on the new map.`
+      )
+    ) {
+      event.preventDefault();
+    }
+  }
 
   const payloadOf = (bin: DrawerBin) => ({
     location_id: bin.location_id,
@@ -337,7 +417,22 @@
     <div class="card">
       <div class="card-head">
         <h2>Grid</h2>
-        <span class="badge">{layout.used_cells} of {cols * rows} cells used</span>
+        <div class="map-head-actions">
+          {#if data.staging}
+            <button
+              class="btn btn-sm"
+              class:btn-primary={showUnsorted}
+              type="button"
+              onclick={toggleUnsorted}
+              aria-pressed={showUnsorted}
+              title="Show the items that are not filed yet"
+            >
+              <Icon name="box" size={14} />
+              Unsorted ({data.staging.items.length})
+            </button>
+          {/if}
+          <span class="badge">{layout.used_cells} of {cols * rows} cells used</span>
+        </div>
       </div>
 
       {#if selectedBin}
@@ -437,6 +532,91 @@
     </div>
 
     <div class="map-side">
+      {#if showUnsorted}
+        <div class="card">
+          <div class="card-head">
+            <h2>Unsorted</h2>
+            <span class="badge">
+              {data.staging ? plural(data.staging.items.length, 'item') : 'not set'}
+            </span>
+          </div>
+          <div class="card-body">
+            {#if !data.staging}
+              <p class="small muted">
+                No location is marked as unsorted yet. Open a location — <em>Sorting Tray</em> is the
+                obvious one — and use <strong>Mark as unsorted</strong> on its page.
+              </p>
+            {:else}
+              <p class="small muted" style="margin-bottom: 10px;">
+                {#if selectedBin}
+                  Filing into <strong>{selectedBin.name}</strong>.
+                {:else}
+                  Filing into this drawer, loose. Select a bin to file straight into it instead.
+                {/if}
+              </p>
+              {#if data.staging.items.length === 0}
+                <p class="small muted">Nothing is waiting to be filed.</p>
+              {:else}
+                <ul class="map-list">
+                  {#each data.staging.items as item (item.id)}
+                    <li>
+                      <span class="map-loose-name">
+                        <a class="link" href={h(`/items/${item.id}`)}>{item.name}</a>
+                        <span class="small muted">
+                          {#if item.loose_quantity !== item.quantity}
+                            {formatNumber(item.loose_quantity)} of {formatNumber(item.quantity)}
+                            {item.unit} here
+                          {:else}
+                            {formatNumber(item.quantity)} {item.unit}
+                          {/if}
+                        </span>
+                      </span>
+                      <form
+                        class="map-loose-form"
+                        method="POST"
+                        action="?/fileItem"
+                        onsubmit={(event) => fileItem(event, item)}
+                      >
+                        <input type="hidden" name="item_id" value={item.id} />
+                        <input type="hidden" name="bin_id" value={selectedBin?.location_id ?? ''} />
+                        <input
+                          class="input map-qty"
+                          type="number"
+                          name="quantity"
+                          min="1"
+                          max={item.loose_quantity}
+                          step="any"
+                          value={item.loose_quantity}
+                          aria-label={`How many of ${item.name} to file`}
+                        />
+                        <button
+                          class="icon-btn"
+                          type="submit"
+                          disabled={busy}
+                          title={selectedBin
+                            ? `File into ${selectedBin.name}`
+                            : 'File into this drawer'}
+                          aria-label={selectedBin
+                            ? `File ${item.name} into ${selectedBin.name}`
+                            : `File ${item.name} into this drawer`}
+                        >
+                          <Icon name="arrowRight" size={15} />
+                        </button>
+                      </form>
+                    </li>
+                  {/each}
+                </ul>
+                <form method="POST" action="?/fileAll" onsubmit={confirmFileAll} style="margin-top: 12px;">
+                  <button class="btn btn-sm" type="submit">
+                    <Icon name="box" size={14} /> File all into this drawer
+                  </button>
+                </form>
+              {/if}
+            {/if}
+          </div>
+        </div>
+      {/if}
+
       <div class="card">
         <div class="card-head"><h2>Add a bin</h2></div>
         <div class="card-body">
@@ -563,6 +743,39 @@
                 </li>
               {/each}
             </ul>
+          </div>
+        </div>
+      {/if}
+
+      {#if location.child_count > 0 && data.rearrangeTargets.length > 0}
+        <div class="card">
+          <div class="card-head"><h2>Rearrange</h2></div>
+          <div class="card-body">
+            <p class="small muted" style="margin-bottom: 12px;">
+              Move every bin here somewhere else — another drawer, or the unsorted area while you
+              shuffle. Bins keep their size, rotation and contents; they lose their position because
+              cells belong to a particular grid.
+            </p>
+            <form
+              class="form-grid"
+              method="POST"
+              action="?/moveAllBins"
+              onsubmit={confirmMoveAllBins}
+            >
+              <div class="field">
+                <label class="label" for="move-target">
+                  Move {plural(location.child_count, 'bin')} to
+                </label>
+                <select class="select" id="move-target" name="target_location_id" required>
+                  {#each data.rearrangeTargets as target (target.id)}
+                    <option value={target.id}>{target.label}</option>
+                  {/each}
+                </select>
+              </div>
+              <div class="form-actions">
+                <button class="btn" type="submit"><Icon name="arrowRight" size={15} /> Move bins</button>
+              </div>
+            </form>
           </div>
         </div>
       {/if}
@@ -709,6 +922,13 @@
     flex-wrap: wrap;
     font-size: 10px;
     color: var(--muted);
+  }
+
+  .map-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   .map-toolbar {

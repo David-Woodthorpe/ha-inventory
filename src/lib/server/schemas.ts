@@ -221,7 +221,8 @@ export const locationUpdateSchema = z
     sort_order: optionalNumber(Number.NEGATIVE_INFINITY),
     ha_enabled: optionalBoolean,
     grid_cols: optionalGridSize,
-    grid_rows: optionalGridSize
+    grid_rows: optionalGridSize,
+    is_staging: optionalBoolean
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'Provide at least one field to update'

@@ -4,6 +4,20 @@ Release notes for the Inventory Home Assistant add-on. Home Assistant shows this
 file on the add-on page, so keep entries user-facing: what changed and what it
 means for someone using the app, not file names.
 
+## 1.8.0 — 2026-11-15
+
+- **An unsorted area.** Mark any location — the existing *Sorting Tray* is the obvious one — with
+  **Mark as unsorted** on its page. Only one location can hold the role, so the answer to "where do
+  unfiled parts go" is always a single place.
+- **File parts while you look at the drawer.** A new **Unsorted** toggle on a drawer map opens a
+  panel listing everything waiting to be filed. Each row takes a quantity and an arrow, and the
+  arrow honours the bin you have selected: pick a tray and the parts go into it, pick nothing and
+  they land loose in the drawer. **File all** empties the unsorted area into the drawer in one go.
+- **Move a drawer's bins elsewhere in one action.** The new **Rearrange** card moves every bin in a
+  drawer to another drawer or back to the unsorted area. Bins keep their size, rotation and
+  contents; they lose their position, because cells belong to a particular grid, and wait in the
+  unplaced list until you place them again.
+
 ## 1.7.3 — 2026-11-15
 
 - **See what is in a bin without leaving the map.** Selecting a bin now lists its contents with

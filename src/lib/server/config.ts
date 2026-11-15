@@ -87,4 +87,4 @@ export const serviceCalendarEnabled = Boolean(
   serviceCalendarEntity && homeAssistantToken && (process.env.SUPERVISOR_TOKEN || homeAssistantUrl)
 );
 
-export const appVersion = '1.7.3';
+export const appVersion = '1.8.0';

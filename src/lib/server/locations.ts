@@ -20,6 +20,7 @@ interface LocationRow {
   grid_w: number | null;
   grid_h: number | null;
   grid_rot: number;
+  is_staging: number;
   created_at: string;
   updated_at: string;
 }
@@ -125,6 +126,7 @@ export function getLocations(): Location[] {
       grid_w: row.grid_w ?? null,
       grid_h: row.grid_h ?? null,
       grid_rot: normaliseRotation(row.grid_rot),
+      is_staging: Boolean(row.is_staging),
       created_at: row.created_at,
       updated_at: row.updated_at
     } satisfies Location;
@@ -253,12 +255,21 @@ export function updateLocation(id: string, input: unknown): Location {
     ['sort_order', 'sort_order'],
     ['ha_enabled', 'ha_enabled'],
     ['grid_cols', 'grid_cols'],
-    ['grid_rows', 'grid_rows']
+    ['grid_rows', 'grid_rows'],
+    ['is_staging', 'is_staging']
   ];
   for (const [key, column] of map) {
     if (data[key] !== undefined) {
       fields.push(`${column} = ?`);
-      values.push(key === 'ha_enabled' ? (data.ha_enabled ? 1 : 0) : data[key] === undefined ? null : data[key]);
+      values.push(
+        key === 'ha_enabled' || key === 'is_staging'
+          ? data[key]
+            ? 1
+            : 0
+          : data[key] === undefined
+            ? null
+            : data[key]
+      );
     }
   }
 
@@ -276,6 +287,10 @@ export function updateLocation(id: string, input: unknown): Location {
   values.push(nowIso(), id);
 
   transaction(() => {
+    // One unsorted area at a time: marking a location clears any previous one.
+    if (data.is_staging === true) {
+      db.prepare('UPDATE locations SET is_staging = 0 WHERE id <> ? AND is_staging = 1').run(id);
+    }
     db.prepare(`UPDATE locations SET ${fields.join(', ')} WHERE id = ?`).run(...(values as never[]));
     if (gridChanged && nextCols === null) {
       // No grid, no positions: children keep their own footprint but are no

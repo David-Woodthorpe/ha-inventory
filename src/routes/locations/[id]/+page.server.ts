@@ -68,6 +68,16 @@ export const actions = {
     }
   },
 
+  toggleStaging: async ({ params }: { params: { id: string } }) => {
+    const location = getLocation(params.id);
+    updateLocation(params.id, { is_staging: !location.is_staging });
+    return {
+      success: location.is_staging
+        ? `“${location.name}” is no longer the unsorted area`
+        : `“${location.name}” is now the unsorted area, shown on every drawer map`
+    };
+  },
+
   toggleHomeAssistant: async ({ params }: { params: { id: string } }) => {
     const location = getLocation(params.id);
     updateLocation(params.id, { ha_enabled: !location.ha_enabled });

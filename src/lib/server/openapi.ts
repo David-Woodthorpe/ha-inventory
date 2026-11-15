@@ -501,7 +501,11 @@ export const openapi = {
                   'Publish this location to Home Assistant. Turning it off also hides its sublocations. Individually published items stay visible.'
               },
               grid_cols: { type: 'integer', nullable: true },
-              grid_rows: { type: 'integer', nullable: true }
+              grid_rows: { type: 'integer', nullable: true },
+              is_staging: {
+                type: 'boolean',
+                description: 'Mark this location as the unsorted area, or false to unmark it'
+              }
             }
           })
         },
@@ -916,6 +920,11 @@ export const openapi = {
             type: 'integer',
             enum: [0, 90],
             description: 'Orientation of the bin: 0 portrait, 90 landscape'
+          },
+          is_staging: {
+            type: 'boolean',
+            description:
+              'True for the one location that holds parts not filed yet. Setting it clears any previous unsorted area.'
           },
           created_at: { type: 'string', format: 'date-time' },
           updated_at: { type: 'string', format: 'date-time' }
